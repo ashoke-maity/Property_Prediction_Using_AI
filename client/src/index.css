@@ -1,1 +1,22 @@
+@import url('https://fonts.googleapis.com/css2?family=Sofia&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Pecita&display=swap');
 @import "tailwindcss";
+
+/* Tailwind CSS v4 custom font configuration */
+@theme {
+  --font-family-sofia: 'Sofia', cursive;
+  --font-family-pecita: 'Pecita', cursive;
+}
+
+/* Custom font classes */
+.sofia-regular {
+  font-family: "Sofia", cursive;
+  font-weight: 400;
+  font-style: normal;
+}
+
+.pecita-regular {
+  font-family: "Pecita", cursive;
+  font-weight: 400;
+  font-style: normal;
+}
