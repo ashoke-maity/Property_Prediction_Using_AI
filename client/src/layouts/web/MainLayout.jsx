@@ -1,24 +1,53 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useMemo, useCallback } from 'react';
 import Header from '../../components/web/Header';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Html, Stars, PerspectiveCamera, Instances, Instance } from '@react-three/drei';
 import ufoImg from '../../assets/logo.png';
+import trendChart from '../../assets/trend-chart.svg';
+import comparisonChart from '../../assets/comparison-chart.svg';
+import featureImportance from '../../assets/feature-importance.svg';
+import similarProperties from '../../assets/similar-properties.svg';
 
-// 3D UFO Component (kept for later animation)
-function UFO({ position, scanning, onClick }) {
+// Optimized constants to avoid recalculations
+const MATH_PI_2 = Math.PI * 2;
+const MATH_PI_DIV_2 = Math.PI / 2;
+const MATH_PI_DIV_8 = Math.PI / 8;
+const MATH_PI_DIV_6 = Math.PI / 6;
+const MATH_PI_DIV_7 = Math.PI / 7;
+
+// Precomputed colors
+const RIM_LIGHT_COLORS = ["#ffd600", "#ff1744", "#00e676", "#2979ff"];
+const PERSON_COLORS = ['#fbc02d', '#ffb300', '#90caf9', '#e57373'];
+const CAR_COLORS = ['#1976d2', '#e53935', '#43a047', '#ff9800', '#9c27b0', '#795548', '#607d8b'];
+const FLOWER_COLORS = ['#ff4081', '#ffd600', '#7c4dff', '#00e676'];
+const TRAFFIC_LIGHT_STATES = ['red', 'yellow', 'green'];
+
+// Memoized UFO Component with optimizations
+const UFO = React.memo(function UFO({ position, scanning, onClick }) {
   const mesh = useRef();
+  const beamRef = useRef();
+  
+  // Memoized rim lights positions
+  const rimLights = useMemo(() => 
+    Array.from({ length: 8 }, (_, i) => {
+      const angle = (i / 8) * MATH_PI_2;
+      return [Math.cos(angle) * 0.85, -0.09, Math.sin(angle) * 0.85];
+    }), []
+  );
+
   useFrame(({ clock }) => {
     if (mesh.current) {
+      const elapsed = clock.getElapsedTime();
       mesh.current.position.x = position[0];
-      mesh.current.position.y = position[1] + Math.sin(clock.getElapsedTime() * 2) * 0.2;
+      mesh.current.position.y = position[1] + Math.sin(elapsed * 2) * 0.2;
       mesh.current.position.z = position[2];
-      mesh.current.rotation.y = Math.sin(clock.getElapsedTime()) * 0.2;
+      mesh.current.rotation.y = Math.sin(elapsed) * 0.2;
     }
-  });
-  // Rim lights positions (around the edge of the saucer)
-  const rimLights = Array.from({ length: 8 }).map((_, i) => {
-    const angle = (i / 8) * Math.PI * 2;
-    return [Math.cos(angle) * 0.85, -0.09, Math.sin(angle) * 0.85];
+    // Animate beam opacity if scanning
+    if (scanning && beamRef.current && beamRef.current.material) {
+      const pulse = 0.9 + 0.1 * Math.sin(clock.getElapsedTime() * 2);
+      beamRef.current.material.opacity = pulse;
+    }
   });
   return (
     <group ref={mesh} onClick={onClick} style={{ cursor: onClick ? 'pointer' : 'default' }}>
@@ -53,7 +82,7 @@ function UFO({ position, scanning, onClick }) {
       {rimLights.map((pos, i) => (
         <mesh key={i} position={pos}>
           <sphereGeometry args={[0.07, 8, 8]} />
-          <meshStandardMaterial color={["#ffd600","#ff1744","#00e676","#2979ff"][i%4]} emissive={["#ffd600","#ff1744","#00e676","#2979ff"][i%4]} emissiveIntensity={1.2} />
+          <meshStandardMaterial color={RIM_LIGHT_COLORS[i%4]} emissive={RIM_LIGHT_COLORS[i%4]} emissiveIntensity={1.2} />
         </mesh>
       ))}
       {/* Subtle glow underneath */}
@@ -61,40 +90,40 @@ function UFO({ position, scanning, onClick }) {
         <cylinderGeometry args={[0.18, 0.85, 0.18, 16, 1, true]} />
         <meshStandardMaterial color="#7ecfff" transparent opacity={0.18} emissive="#7ecfff" emissiveIntensity={0.5} />
       </mesh>
-      {/* Optional: scanning beam */}
+      {/* Extremely visible scanning beam */}
       {scanning && (
-        <mesh position={[0, -0.7, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.01, 1.5, 3, 16, 1, true]} />
-          <meshStandardMaterial color="#7ecfff" transparent opacity={0.25} emissive="#7ecfff" emissiveIntensity={0.7} />
+        <mesh ref={beamRef} position={[0, -2.5, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.3, 2.5, 6, 32, 1, true]} />
+          <meshStandardMaterial color="#00ffff" transparent opacity={1} emissive="#00ffff" emissiveIntensity={2} />
         </mesh>
       )}
     </group>
   );
-}
+});
 
-function Building({ position, color, height = 1.2 }) {
-  // Add windows to all four sides
-  const windowRows = Math.floor(height * 3);
-  const windowCols = 3;
-  const windowPositions = [];
-  // Front and back
-  for (let i = 0; i < windowRows; i++) {
-    for (let j = 0; j < windowCols; j++) {
-      // Front
-      windowPositions.push([0.22 - 0.22 * j, height / 2 - 0.25 - i * 0.3, 0.36]);
-      // Back
-      windowPositions.push([0.22 - 0.22 * j, height / 2 - 0.25 - i * 0.3, -0.36]);
+// Memoized Building Component with optimized window generation
+const Building = React.memo(function Building({ position, color, height = 1.2 }) {
+  const windowPositions = useMemo(() => {
+    const positions = [];
+    const windowRows = Math.floor(height * 3);
+    const windowCols = 3;
+    
+    // Generate windows for all four sides
+    for (let i = 0; i < windowRows; i++) {
+      for (let j = 0; j < windowCols; j++) {
+        const y = height / 2 - 0.25 - i * 0.3;
+        const x = 0.22 - 0.22 * j;
+        // Front, back, right, left
+        positions.push(
+          [x, y, 0.36],
+          [x, y, -0.36],
+          [0.36, y, 0.22 - 0.22 * j],
+          [-0.36, y, 0.22 - 0.22 * j]
+        );
+      }
     }
-  }
-  // Left and right
-  for (let i = 0; i < windowRows; i++) {
-    for (let j = 0; j < windowCols; j++) {
-      // Right
-      windowPositions.push([0.36, height / 2 - 0.25 - i * 0.3, 0.22 - 0.22 * j]);
-      // Left
-      windowPositions.push([-0.36, height / 2 - 0.25 - i * 0.3, 0.22 - 0.22 * j]);
-    }
-  }
+    return positions;
+  }, [height]);
   return (
     <group position={position}>
       <mesh castShadow receiveShadow>
@@ -109,9 +138,10 @@ function Building({ position, color, height = 1.2 }) {
       ))}
     </group>
   );
-}
+});
 
-function Tree({ position, type = 0 }) {
+// Memoized Tree Component
+const Tree = React.memo(function Tree({ position, type = 0 }) {
   return (
     <group position={position}>
       <mesh castShadow receiveShadow>
@@ -138,50 +168,61 @@ function Tree({ position, type = 0 }) {
       )}
     </group>
   );
-}
+});
 
-function Grass({ position }) {
+// Memoized Grass Component
+const Grass = React.memo(function Grass({ position }) {
   return (
     <group position={position}>
-      <mesh rotation={[0, 0, Math.PI / 8]}>
+      <mesh rotation={[0, 0, MATH_PI_DIV_8]}>
         <cylinderGeometry args={[0.01, 0.03, 0.18, 6]} />
         <meshStandardMaterial color="#7cb342" />
       </mesh>
-      <mesh rotation={[0, 0, -Math.PI / 8]}>
+      <mesh rotation={[0, 0, -MATH_PI_DIV_8]}>
         <cylinderGeometry args={[0.01, 0.03, 0.15, 6]} />
         <meshStandardMaterial color="#8bc34a" />
       </mesh>
     </group>
   );
-}
+});
 
-function Road({ position, length = 4, rotation = 0, roundabout = false, isHorizontal = false }) {
+// Optimized Road Component
+const Road = React.memo(function Road({ position, length = 4, rotation = 0, roundabout = false, isHorizontal = false }) {
+  const dashPositions = useMemo(() => {
+    const positions = [];
+    const dashCount = Math.floor(length * 2);
+    
+    for (let i = 0; i < dashCount; i++) {
+      const localPos = -length / 2 + 0.5 + i;
+      const worldPos = [
+        position[0] + Math.sin(rotation) * 0 + Math.cos(rotation) * localPos,
+        position[1] + 0.055,
+        position[2] + Math.cos(rotation) * 0 - Math.sin(rotation) * localPos
+      ];
+      
+      // Skip dashes at intersections
+      const isAtIntersection = Math.abs(worldPos[0] - Math.round(worldPos[0])) < 0.2 && 
+                              Math.abs(worldPos[2] - Math.round(worldPos[2])) < 0.2;
+      if (!isAtIntersection) {
+        positions.push(worldPos);
+      }
+    }
+    return positions;
+  }, [position, length, rotation]);
+
   return (
     <group>
-      {/* Black road, wider to cover grid */}
       <mesh position={position} rotation={[0, rotation, 0]} receiveShadow>
         <boxGeometry args={[length, 0.09, 0.44]} />
         <meshStandardMaterial color="#111" />
       </mesh>
-      {/* Center dashed white line - break at intersections */}
-      {[...Array(Math.floor(length * 2))].map((_, i) => {
-        const localPos = -length / 2 + 0.5 + i;
-        // Much simpler intersection detection
-        // Skip lines that are at integer coordinates (where roads cross)
-        const worldPos = [
-          position[0] + Math.sin(rotation) * 0 + Math.cos(rotation) * localPos,
-          position[1] + 0.055,
-          position[2] + Math.cos(rotation) * 0 - Math.sin(rotation) * localPos
-        ];
-        const isAtIntersection = Math.abs(worldPos[0] - Math.round(worldPos[0])) < 0.2 && Math.abs(worldPos[2] - Math.round(worldPos[2])) < 0.2;
-        if (isAtIntersection) return null;
-        return (
-          <mesh key={i} position={worldPos} rotation={[0, rotation, 0]}>
-            <boxGeometry args={[0.4, 0.012, 0.05]} />
-            <meshStandardMaterial color="#fff" />
-          </mesh>
-        );
-      })}
+      
+      {dashPositions.map((pos, i) => (
+        <mesh key={i} position={pos} rotation={[0, rotation, 0]}>
+          <boxGeometry args={[0.4, 0.012, 0.05]} />
+          <meshStandardMaterial color="#fff" />
+        </mesh>
+      ))}
       {roundabout && (
         <mesh position={[position[0], position[1] + 0.06, position[2]]}>
           <torusGeometry args={[0.7, 0.13, 16, 100]} />
@@ -190,9 +231,10 @@ function Road({ position, length = 4, rotation = 0, roundabout = false, isHorizo
       )}
     </group>
   );
-}
+});
 
-function Car({ position, color = '#1976d2', rotation = [0, 0, 0] }) {
+// Memoized Car Component
+const Car = React.memo(function Car({ position, color = '#1976d2', rotation = [0, 0, 0] }) {
   return (
     <group position={position} rotation={rotation}>
       {/* Main car body - more realistic shape */}
@@ -280,9 +322,10 @@ function Car({ position, color = '#1976d2', rotation = [0, 0, 0] }) {
       </mesh>
     </group>
   );
-}
+});
 
-function Streetlight({ position }) {
+// Memoized Streetlight Component
+const Streetlight = React.memo(function Streetlight({ position }) {
   return (
     <group position={position}>
       <mesh>
@@ -295,36 +338,44 @@ function Streetlight({ position }) {
       </mesh>
     </group>
   );
-}
+});
 
-function Footpath({ position, length = 4, rotation = 0 }) {
+// Memoized Footpath Component
+const Footpath = React.memo(function Footpath({ position, length = 4, rotation = 0 }) {
+  const dashPositions = useMemo(() => {
+    const positions = [];
+    const dashCount = Math.floor(length * 3);
+    
+    for (let i = 0; i < dashCount; i++) {
+      const localPos = -length / 2 + 0.33 + i * 0.33;
+      positions.push([
+        position[0] + Math.sin(rotation) * 0 + Math.cos(rotation) * localPos,
+        position[1] + 0.02,
+        position[2] + Math.cos(rotation) * 0 - Math.sin(rotation) * localPos
+      ]);
+    }
+    return positions;
+  }, [position, length, rotation]);
+
   return (
     <group>
-      {/* Gray footpath base */}
       <mesh position={position} rotation={[0, rotation, 0]} receiveShadow>
         <boxGeometry args={[length, 0.03, 0.18]} />
         <meshStandardMaterial color="#e0e0e0" />
       </mesh>
-      {/* Yellow dashed lines on footpath */}
-      {[...Array(Math.floor(length * 3))].map((_, i) => {
-        const localPos = -length / 2 + 0.33 + i * 0.33;
-        const dashPos = [
-          position[0] + Math.sin(rotation) * 0 + Math.cos(rotation) * localPos,
-          position[1] + 0.02,
-          position[2] + Math.cos(rotation) * 0 - Math.sin(rotation) * localPos
-        ];
-        return (
-          <mesh key={i} position={dashPos} rotation={[0, rotation, 0]}>
-            <boxGeometry args={[0.2, 0.01, 0.06]} />
-            <meshStandardMaterial color="#ffd600" />
-          </mesh>
-        );
-      })}
+      
+      {dashPositions.map((dashPos, i) => (
+        <mesh key={i} position={dashPos} rotation={[0, rotation, 0]}>
+          <boxGeometry args={[0.2, 0.01, 0.06]} />
+          <meshStandardMaterial color="#ffd600" />
+        </mesh>
+      ))}
     </group>
   );
-}
+});
 
-function Person({ position, color = '#fbc02d', rotation = 0 }) {
+// Memoized Person Component
+const Person = React.memo(function Person({ position, color = '#fbc02d', rotation = 0 }) {
   // Smaller, more human-like proportions
   return (
     <group position={position} rotation={[0, rotation, 0]}>
@@ -344,20 +395,20 @@ function Person({ position, color = '#fbc02d', rotation = 0 }) {
         <meshStandardMaterial color="#ffe0b2" />
       </mesh>
       {/* Arms */}
-      <mesh position={[0.045, 0.16, 0]} rotation={[0, 0, Math.PI / 7]}>
+      <mesh position={[0.045, 0.16, 0]} rotation={[0, 0, MATH_PI_DIV_7]}>
         <cylinderGeometry args={[0.012, 0.012, 0.09, 8]} />
         <meshStandardMaterial color={color} />
       </mesh>
-      <mesh position={[-0.045, 0.16, 0]} rotation={[0, 0, -Math.PI / 7]}>
+      <mesh position={[-0.045, 0.16, 0]} rotation={[0, 0, -MATH_PI_DIV_7]}>
         <cylinderGeometry args={[0.012, 0.012, 0.09, 8]} />
         <meshStandardMaterial color={color} />
       </mesh>
     </group>
   );
-}
+});
 
-// Improved Cloud: fluffy, cartoon-like, layered in 3D
-function Cloud({ position = [0,0,0], scale = 1 }) {
+// Memoized Cloud Component
+const Cloud = React.memo(function Cloud({ position = [0,0,0], scale = 1 }) {
   return (
     <group position={position} scale={[scale, scale, scale]}>
       <mesh position={[0,0,0]}>
@@ -382,37 +433,30 @@ function Cloud({ position = [0,0,0], scale = 1 }) {
       </mesh>
     </group>
   );
-}
-// Improved Valley/Hill: smooth, visible, natural
-function Valley({ position = [0,0,0], scale = 1, color = '#789262' }) {
-  // Use a stretched sphere, higher and closer
-  return (
-    <mesh position={[position[0], position[1] - 0.2 * scale, position[2]]} scale={[scale * 3, scale * 0.7, scale * 2.2]} receiveShadow castShadow>
-      <sphereGeometry args={[1, 32, 24, 0, Math.PI * 2, 0, Math.PI / 2]} />
-      <meshStandardMaterial color={color} flatShading />
-    </mesh>
-  );
-}
-// Sun
-function Sun({ position = [0,0,0], scale = 1 }) {
-  return (
-    <mesh position={position} scale={[scale, scale, scale]}>
-      <sphereGeometry args={[1.2, 24, 24]} />
-      <meshStandardMaterial color="#ffe066" emissive="#ffe066" emissiveIntensity={0.7} />
-    </mesh>
-  );
-}
+});
 
-// Rock and Flower components
-function Rock({ position }) {
+// Memoized Valley Component
+const Valley = React.memo(function Valley({ position = [0,0,0], scale = 1, color = '#bfcfb3' }) {
+  return (
+    <mesh position={[position[0], position[1] - 0.2 * scale, position[2]]} scale={[scale * 3, scale * 0.7, scale * 2.2]}>
+      <sphereGeometry args={[1, 16, 12, 0, MATH_PI_2, 0, MATH_PI_DIV_2]} />
+      <meshStandardMaterial color={color} roughness={1} metalness={0} opacity={1} />
+    </mesh>
+  );
+});
+
+// Memoized Rock Component
+const Rock = React.memo(function Rock({ position }) {
   return (
     <mesh position={position}>
       <sphereGeometry args={[0.13 + Math.random() * 0.08, 8, 8]} />
       <meshStandardMaterial color="#888" />
     </mesh>
   );
-}
-function Flower({ position }) {
+});
+
+// Memoized Flower Component
+const Flower = React.memo(function Flower({ position }) {
   return (
     <group position={position}>
       <mesh>
@@ -421,11 +465,11 @@ function Flower({ position }) {
       </mesh>
       <mesh position={[0, 0.06, 0]}>
         <sphereGeometry args={[0.04, 8, 8]} />
-        <meshStandardMaterial color={['#ff4081','#ffd600','#7c4dff','#00e676'][Math.floor(Math.random()*4)]} />
+        <meshStandardMaterial color={FLOWER_COLORS[Math.floor(Math.random() * 4)]} />
       </mesh>
     </group>
   );
-}
+});
 
 // TrafficLight component
 function TrafficLight({ position, rotation = 0, state = 'red' }) {
@@ -477,8 +521,8 @@ function PedestrianCrossing({ position, rotation = 0, width = 0.52, length = 0.9
   );
 }
 
-// City grid generator (roads beside every footpath, not two parallel roads)
-function generateCityGrid(size = 7, blockSize = 2) {
+// City grid generator function (moved inside Scene component)
+const generateCityGrid = (size = 7, blockSize = 2) => {
   const roads = [];
   const buildings = [];
   const footpaths = [];
@@ -547,8 +591,8 @@ function generateCityGrid(size = 7, blockSize = 2) {
       // Offset from center of footpath
       const px = x + Math.cos(r) * t + Math.sin(r) * (0.09 + Math.random() * 0.05);
       const pz = z - Math.sin(r) * t + Math.cos(r) * (0.09 + Math.random() * 0.05);
-      const prot = Math.random() * Math.PI * 2;
-      footpathPeople.push([px, y + 0.045, pz, ['#fbc02d', '#ffb300', '#90caf9', '#e57373'][Math.floor(Math.random() * 4)], prot]);
+      const prot = Math.random() * MATH_PI_2;
+      footpathPeople.push([px, y + 0.045, pz, PERSON_COLORS[Math.floor(Math.random() * 4)], prot]);
     }
   });
 
@@ -591,22 +635,22 @@ function generateCityGrid(size = 7, blockSize = 2) {
       trafficLights.push({
         position: [x + offset, tlY, z + offset],
         rotation: Math.PI / 4,
-        state: ['red', 'yellow', 'green'][Math.floor(Math.random() * 3)]
+        state: TRAFFIC_LIGHT_STATES[Math.floor(Math.random() * 3)]
       });
       trafficLights.push({
         position: [x - offset, tlY, z + offset],
         rotation: (3 * Math.PI) / 4,
-        state: ['red', 'yellow', 'green'][Math.floor(Math.random() * 3)]
+        state: TRAFFIC_LIGHT_STATES[Math.floor(Math.random() * 3)]
       });
       trafficLights.push({
         position: [x + offset, tlY, z - offset],
         rotation: (-Math.PI) / 4,
-        state: ['red', 'yellow', 'green'][Math.floor(Math.random() * 3)]
+        state: TRAFFIC_LIGHT_STATES[Math.floor(Math.random() * 3)]
       });
       trafficLights.push({
         position: [x - offset, tlY, z - offset],
         rotation: (-3 * Math.PI) / 4,
-        state: ['red', 'yellow', 'green'][Math.floor(Math.random() * 3)]
+        state: TRAFFIC_LIGHT_STATES[Math.floor(Math.random() * 3)]
       });
     }
   }
@@ -625,7 +669,7 @@ function generateCityGrid(size = 7, blockSize = 2) {
             cars.push({
               position: [x + blockSize / 2, roadY, z + offset],
               rotation: [0, Math.PI / 2, 0], // Face along the road
-              color: ['#1976d2', '#e53935', '#43a047', '#ff9800', '#9c27b0', '#795548', '#607d8b'][Math.floor(Math.random() * 7)]
+              color: CAR_COLORS[Math.floor(Math.random() * 7)]
             });
           }
         }
@@ -639,7 +683,7 @@ function generateCityGrid(size = 7, blockSize = 2) {
             cars.push({
               position: [x + offset, roadY, z + blockSize / 2],
               rotation: [0, 0, 0], // Face along the road
-              color: ['#1976d2', '#e53935', '#43a047', '#ff9800', '#9c27b0', '#795548', '#607d8b'][Math.floor(Math.random() * 7)]
+              color: CAR_COLORS[Math.floor(Math.random() * 7)]
             });
           }
         }
@@ -650,38 +694,54 @@ function generateCityGrid(size = 7, blockSize = 2) {
   // Roundabout at center
   roads.push([[0, 0.041, 0], [0, 0.041, 0, true]]);
   return { roads, buildings, footpaths, streetlights, trees, people, grasses, cars, footpathPeople, trafficLights, crossings };
+};
+
+// Utility function to check if a point is inside any valley
+function isInsideAnyValley(x, z, valleyRing) {
+  return valleyRing.some(v => {
+    const dx = x - v.position[0];
+    const dz = z - v.position[2];
+    const rx = v.scale * 3;
+    const rz = v.scale * 2.2;
+    return (dx * dx) / (rx * rx) + (dz * dz) / (rz * rz) < 1;
+  });
 }
 
-function Scene({ onUfoClick }) {
+// Optimized Scene Component
+const Scene = React.memo(function Scene({ onUfoClick }) {
   // UFO animation state (kept for later)
   const [ufoPos] = useState([0, 3, 0]);
   const [scanning] = useState(false);
   const [showResults] = useState(false);
 
-  // Generate city grid
-  const { roads, buildings, footpaths, streetlights, trees, people, grasses, cars, footpathPeople, trafficLights, crossings } = generateCityGrid(8, 2);
+  // Memoized city grid generation
+  const cityData = useMemo(() => generateCityGrid(8, 2), []);
+  const { roads, buildings, footpaths, streetlights, trees, people, grasses, cars, footpathPeople, trafficLights, crossings } = cityData;
 
-  // Valley ring positions (closer, higher, more visible)
-  const valleyRing = [];
-  const radius = 15;
-  for (let i = 0; i < 8; i++) {
-    const angle = (i / 8) * Math.PI * 2;
-    const x = Math.cos(angle) * radius;
-    const z = Math.sin(angle) * radius;
-    valleyRing.push({
-      position: [x, 0.2, z],
-      scale: 2.5 + Math.random() * 0.8,
-      color: i % 2 === 0 ? '#8d9e6e' : '#b0bfa3',
-    });
-  }
+  // Memoized valley ring
+  const valleyRing = useMemo(() => {
+    const ring = [];
+    const radius = 15;
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * MATH_PI_2;
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius;
+      ring.push({
+        position: [x, 0.2, z],
+        scale: 2.5 + Math.random() * 0.8,
+        color: i % 2 === 0 ? '#8d9e6e' : '#b0bfa3',
+      });
+    }
+    return ring;
+  }, []);
   // Remove the clouds array and the rendering of Cloud components
   // (Do not render any Cloud components)
 
-  // Helper to generate random positions on a hemisphere (for trees/grass/rocks/flowers on valleys)
-  function randomPointsOnValley(center, scale, count) {
+  // Optimized random points generation
+  const randomPointsOnValley = useCallback((center, scale, count) => {
     const points = [];
     for (let i = 0; i < count; i++) {
-      const theta = Math.random() * Math.PI * 2;
+      const theta = Math.random() * MATH_PI_2;
       const r = 0.5 + Math.random() * 0.45;
       const x = center[0] + Math.cos(theta) * r * scale * 1.7;
       const z = center[2] + Math.sin(theta) * r * scale * 1.2;
@@ -689,46 +749,50 @@ function Scene({ onUfoClick }) {
       points.push([x, y, z]);
     }
     return points;
-  }
+  }, []);
 
-  // Gather all tree positions/types (city + valley)
-  const allTreeData = [
-    ...trees.map(([x, y, z, t]) => ({ position: [x, y, z], type: t })),
-    ...valleyRing.flatMap((v, i) =>
-      randomPointsOnValley(v.position, v.scale, 18).map((pos, j) => ({ position: pos, type: Math.floor(Math.random() * 3) }))
-    )
-  ];
-  // Split by type for foliage
-  const trunkData = allTreeData;
-  const coneData = allTreeData.filter(t => t.type === 0);
-  const sphereData = allTreeData.filter(t => t.type === 1);
-  const dodecaData = allTreeData.filter(t => t.type === 2);
+  // Memoized instanced data
+  const instancedData = useMemo(() => {
+    const allTreeData = [
+      ...trees.map(([x, y, z, t]) => ({ position: [x, y, z], type: t })),
+      ...valleyRing.flatMap((v, i) =>
+        randomPointsOnValley(v.position, v.scale, 18).map((pos, j) => ({ position: pos, type: Math.floor(Math.random() * 3) }))
+      )
+    ];
 
-  // Gather all grass positions (city + valley)
-  const allGrassData = [
-    ...grasses,
-    ...valleyRing.flatMap((v, i) => randomPointsOnValley(v.position, v.scale, 6))
-  ];
+    const allGrassData = [
+      ...grasses,
+      ...valleyRing.flatMap((v, i) => randomPointsOnValley(v.position, v.scale, 6))
+    ];
 
-  // Gather all flower positions (city + valley)
-  const allFlowerData = [
-    ...valleyRing.flatMap((v, i) => randomPointsOnValley(v.position, v.scale, 3).map((pos, j) => ({ position: pos, color: ['#ff4081','#ffd600','#7c4dff','#00e676'][Math.floor(Math.random()*4)] })))
-  ];
-  // Group flowers by color for instancing
-  const flowerColors = ['#ff4081','#ffd600','#7c4dff','#00e676'];
-  const flowersByColor = flowerColors.map(color => allFlowerData.filter(f => f.color === color));
-  // Gather all rock positions (city + valley)
-  const allRockData = [
-    ...valleyRing.flatMap((v, i) => randomPointsOnValley(v.position, v.scale, 2))
-  ];
+    const allFlowerData = [
+      ...valleyRing.flatMap((v, i) => randomPointsOnValley(v.position, v.scale, 3).map((pos, j) => ({ position: pos, color: FLOWER_COLORS[Math.floor(Math.random() * 4)] })))
+    ];
 
-  // Gather all people positions/colors/rotations (city + footpaths)
-  const allPeopleData = [
-    ...footpathPeople,
-    ...people.map(([x, y, z, c]) => [x, y, z, c, 0]) // add default rotation for city people
-  ];
-  // Gather all streetlight positions (city + footpaths)
-  const allStreetlightData = streetlights;
+    const allRockData = [
+      ...valleyRing.flatMap((v, i) => randomPointsOnValley(v.position, v.scale, 2))
+    ];
+
+    const allPeopleData = [
+      ...footpathPeople,
+      ...people.map(([x, y, z, c]) => [x, y, z, c, 0])
+    ];
+
+    return {
+      trees: {
+        all: allTreeData,
+        cone: allTreeData.filter(t => t.type === 0),
+        sphere: allTreeData.filter(t => t.type === 1),
+        dodeca: allTreeData.filter(t => t.type === 2)
+      },
+      grass: allGrassData,
+      flowers: allFlowerData,
+      rocks: allRockData,
+      people: allPeopleData,
+      streetlights: streetlights,
+      flowersByColor: FLOWER_COLORS.map(color => allFlowerData.filter(f => f.color === color))
+    };
+  }, [valleyRing, trees, grasses, people, footpathPeople, streetlights, randomPointsOnValley]);
 
   return (
     <>
@@ -737,128 +801,144 @@ function Scene({ onUfoClick }) {
       <Stars radius={60} depth={120} count={200} factor={3} fade speed={1} />
       {/* Large Ground */}
       <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
-        <planeGeometry args={[40, 40]} />
+        <planeGeometry args={[24, 24]} />
         <meshStandardMaterial color="#4caf50" />
       </mesh>
       {/* Roads and Roundabout (render before footpaths) */}
-      {roads.map(([[x1, y1, z1], [x2, y2, z2, roundabout]], i) => (
-        <Road key={i} position={[(x1 + x2) / 2, y1, (z1 + z2) / 2]} length={Math.sqrt((x2-x1)**2 + (z2-z1)**2)} rotation={Math.atan2(x2-x1, z2-z1)} roundabout={!!roundabout} />
-      ))}
+      {roads.map(([[x1, y1, z1], [x2, y2, z2, roundabout]], i) => {
+        // Only render if both endpoints are not inside any valley
+        if (isInsideAnyValley((x1 + x2) / 2, (z1 + z2) / 2, valleyRing)) return null;
+        return (
+          <Road key={i} position={[(x1 + x2) / 2, y1, (z1 + z2) / 2]} length={Math.sqrt((x2-x1)**2 + (z2-z1)**2)} rotation={Math.atan2(x2-x1, z2-z1)} roundabout={!!roundabout} />
+        );
+      })}
       {/* Footpaths (render after roads, so roads are on top) */}
-      {footpaths.map(([x, y, z, l, r], i) => (
-        <Footpath key={i} position={[x, y, z]} length={l} rotation={r} />
-      ))}
+      {footpaths.map(([x, y, z, l, r], i) => {
+        if (isInsideAnyValley(x, z, valleyRing)) return null;
+        return <Footpath key={i} position={[x, y, z]} length={l} rotation={r} />;
+      })}
       {/* Buildings */}
-      {buildings.map(([x, y, z, color, h], i) => (
-        <Building key={i} position={[x, y, z]} color={color} height={h} />
-      ))}
-      {/* Tree trunks (instanced) */}
-      <Instances limit={trunkData.length}>
+      {buildings.map(([x, y, z, color, h], i) => {
+        if (isInsideAnyValley(x, z, valleyRing)) return null;
+        return (
+          <Building key={i} position={[x, y, z]} color={color} height={h} />
+        );
+      })}
+      {/* Instanced tree trunks */}
+      <Instances limit={instancedData.trees.all.length}>
         <cylinderGeometry args={[0.08, 0.12, 0.5, 8]} />
         <meshStandardMaterial color="#8d5524" />
-        {trunkData.map(({ position }, i) => (
+        {instancedData.trees.all.map(({ position }, i) => (
           <Instance key={i} position={position} />
         ))}
       </Instances>
-      {/* Tree foliage: cone */}
-      <Instances limit={coneData.length}>
+      
+      {/* Instanced tree foliage - cone */}
+      <Instances limit={instancedData.trees.cone.length}>
         <coneGeometry args={[0.25, 0.5, 8]} />
         <meshStandardMaterial color="#3cb371" />
-        {coneData.map(({ position }, i) => (
+        {instancedData.trees.cone.map(({ position }, i) => (
           <Instance key={i} position={[position[0], position[1] + 0.35, position[2]]} />
         ))}
       </Instances>
-      {/* Tree foliage: sphere */}
-      <Instances limit={sphereData.length}>
+      
+      {/* Instanced tree foliage - sphere */}
+      <Instances limit={instancedData.trees.sphere.length}>
         <sphereGeometry args={[0.22, 12, 12]} />
         <meshStandardMaterial color="#388e3c" />
-        {sphereData.map(({ position }, i) => (
+        {instancedData.trees.sphere.map(({ position }, i) => (
           <Instance key={i} position={[position[0], position[1] + 0.4, position[2]]} />
         ))}
       </Instances>
-      {/* Tree foliage: dodecahedron */}
-      <Instances limit={dodecaData.length}>
+      
+      {/* Instanced tree foliage - dodecahedron */}
+      <Instances limit={instancedData.trees.dodeca.length}>
         <dodecahedronGeometry args={[0.22]} />
         <meshStandardMaterial color="#43a047" />
-        {dodecaData.map(({ position }, i) => (
+        {instancedData.trees.dodeca.map(({ position }, i) => (
           <Instance key={i} position={[position[0], position[1] + 0.38, position[2]]} />
         ))}
       </Instances>
-      {/* Grass Tufts (instanced, two crossed cylinders per tuft) */}
-      <Instances limit={allGrassData.length * 2}>
+      {/* Instanced grass */}
+      <Instances limit={instancedData.grass.length * 2}>
         <cylinderGeometry args={[0.01, 0.03, 0.18, 6]} />
         <meshStandardMaterial color="#7cb342" />
-        {allGrassData.map((pos, i) => [
-          <Instance key={i + '-a'} position={pos} rotation={[0, 0, Math.PI / 8]} />,
-          <Instance key={i + '-b'} position={pos} rotation={[0, 0, -Math.PI / 8]} />
+        {instancedData.grass.flatMap((pos, i) => [
+          <Instance key={i + '-a'} position={pos} rotation={[0, 0, MATH_PI_DIV_8]} />,
+          <Instance key={i + '-b'} position={pos} rotation={[0, 0, -MATH_PI_DIV_8]} />
         ])}
       </Instances>
-      {/* People (instanced, each body part) */}
+      {/* Instanced people parts */}
       {/* Legs */}
-      <Instances limit={allPeopleData.length}>
+      <Instances limit={instancedData.people.length}>
         <cylinderGeometry args={[0.025, 0.025, 0.11, 8]} />
         <meshStandardMaterial color="#795548" />
-        {allPeopleData.map(([x, y, z, c, rot], i) => (
+        {instancedData.people.map(([x, y, z, c, rot], i) => (
           <Instance key={i} position={[x, y + 0.06, z]} rotation={[0, rot, 0]} />
         ))}
       </Instances>
+      
       {/* Body */}
-      <Instances limit={allPeopleData.length}>
+      <Instances limit={instancedData.people.length}>
         <cylinderGeometry args={[0.035, 0.045, 0.13, 8]} />
         <meshStandardMaterial color="#fbc02d" />
-        {allPeopleData.map(([x, y, z, c, rot], i) => (
+        {instancedData.people.map(([x, y, z, c, rot], i) => (
           <Instance key={i} position={[x, y + 0.14, z]} rotation={[0, rot, 0]} />
         ))}
       </Instances>
+      
       {/* Head */}
-      <Instances limit={allPeopleData.length}>
+      <Instances limit={instancedData.people.length}>
         <sphereGeometry args={[0.045, 8, 8]} />
         <meshStandardMaterial color="#ffe0b2" />
-        {allPeopleData.map(([x, y, z, c, rot], i) => (
+        {instancedData.people.map(([x, y, z, c, rot], i) => (
           <Instance key={i} position={[x, y + 0.23, z]} rotation={[0, rot, 0]} />
         ))}
       </Instances>
-      {/* Arms (right) */}
-      <Instances limit={allPeopleData.length}>
+      
+      {/* Arms */}
+      <Instances limit={instancedData.people.length}>
         <cylinderGeometry args={[0.012, 0.012, 0.09, 8]} />
         <meshStandardMaterial color="#fbc02d" />
-        {allPeopleData.map(([x, y, z, c, rot], i) => (
-          <Instance key={i} position={[x + 0.045 * Math.cos(rot), y + 0.16, z + 0.045 * Math.sin(rot)]} rotation={[0, rot, Math.PI / 7]} />
+        {instancedData.people.map(([x, y, z, c, rot], i) => (
+          <Instance key={i} position={[x + 0.045 * Math.cos(rot), y + 0.16, z + 0.045 * Math.sin(rot)]} rotation={[0, rot, MATH_PI_DIV_7]} />
         ))}
       </Instances>
-      {/* Arms (left) */}
-      <Instances limit={allPeopleData.length}>
+      
+      <Instances limit={instancedData.people.length}>
         <cylinderGeometry args={[0.012, 0.012, 0.09, 8]} />
         <meshStandardMaterial color="#fbc02d" />
-        {allPeopleData.map(([x, y, z, c, rot], i) => (
-          <Instance key={i} position={[x - 0.045 * Math.cos(rot), y + 0.16, z - 0.045 * Math.sin(rot)]} rotation={[0, rot, -Math.PI / 7]} />
+        {instancedData.people.map(([x, y, z, c, rot], i) => (
+          <Instance key={i} position={[x - 0.045 * Math.cos(rot), y + 0.16, z - 0.045 * Math.sin(rot)]} rotation={[0, rot, -MATH_PI_DIV_7]} />
         ))}
       </Instances>
-      {/* Streetlights (instanced) */}
-      <Instances limit={allStreetlightData.length}>
+      {/* Instanced streetlights */}
+      <Instances limit={instancedData.streetlights.length}>
         <cylinderGeometry args={[0.03, 0.03, 0.7, 12]} />
         <meshStandardMaterial color="#bbb" />
-        {allStreetlightData.map(([x, y, z], i) => (
+        {instancedData.streetlights.map(([x, y, z], i) => (
           <Instance key={i} position={[x, y, z]} />
         ))}
       </Instances>
-      {/* Streetlight heads (instanced) */}
-      <Instances limit={allStreetlightData.length}>
+      
+      <Instances limit={instancedData.streetlights.length}>
         <sphereGeometry args={[0.07, 8, 8]} />
         <meshStandardMaterial color="#fffde4" emissive="#fffde4" emissiveIntensity={1.2} />
-        {allStreetlightData.map(([x, y, z], i) => (
+        {instancedData.streetlights.map(([x, y, z], i) => (
           <Instance key={i} position={[x, y + 0.38, z]} />
         ))}
       </Instances>
 
       {/* Traffic lights at intersections */}
-      {trafficLights.map((tl, i) => (
-        <TrafficLight key={i} position={tl.position} rotation={tl.rotation} state={tl.state} />
-      ))}
+      {trafficLights.map((tl, i) => {
+        if (isInsideAnyValley(tl.position[0], tl.position[2], valleyRing)) return null;
+        return <TrafficLight key={i} position={tl.position} rotation={tl.rotation} state={tl.state} />;
+      })}
       {/* Cars (static) */}
-      {cars.map((car, i) => (
-        <Car key={i} position={car.position} color={car.color} rotation={car.rotation} />
-      ))}
+      {cars.map((car, i) => {
+        if (isInsideAnyValley(car.position[0], car.position[2], valleyRing)) return null;
+        return <Car key={i} position={car.position} color={car.color} rotation={car.rotation} />;
+      })}
       {/* UFO (clickable) */}
       <UFO position={ufoPos} scanning={scanning} onClick={onUfoClick} />
       {/* Results Overlay (kept for later) */}
@@ -882,37 +962,44 @@ function Scene({ onUfoClick }) {
         </Html>
       )}
       {/* Camera Controls - restrict to horizontal (X axis) rotation only */}
-      <PerspectiveCamera makeDefault position={[0, 6.5, 9]} fov={40} />
-      <OrbitControls enablePan={false} minAzimuthAngle={-Math.PI/2} maxAzimuthAngle={Math.PI/2} minPolarAngle={Math.PI/2.5} maxPolarAngle={Math.PI/2.5} minDistance={9} maxDistance={9} target={[0,2,0]} />
+      <PerspectiveCamera makeDefault position={[0, 5.5, 7]} fov={40} />
+      <OrbitControls enablePan={false} minAzimuthAngle={-Math.PI/2} maxAzimuthAngle={Math.PI/2} minPolarAngle={Math.PI/2.5} maxPolarAngle={Math.PI/2.5} minDistance={7} maxDistance={7} target={[0,2,0]} />
       {/* Valleys/Hills around the city, with more trees, grass, rocks, flowers */}
       {valleyRing.map((v, i) => (
         <React.Fragment key={i}>
           <Valley position={v.position} scale={v.scale} color={v.color} />
-          {/* Dense forest of trees on valley */}
-          {randomPointsOnValley(v.position, v.scale, 18).map((pos, j) => (
-            <Tree key={`tree-${i}-${j}`} position={pos} type={Math.floor(Math.random()*3)} />
-          ))}
-          {/* More grass on valley */}
-          {randomPointsOnValley(v.position, v.scale, 12).map((pos, j) => (
-            <Grass key={`grass-${i}-${j}`} position={pos} />
-          ))}
-          {/* Rocks on valley */}
-          {randomPointsOnValley(v.position, v.scale, 5).map((pos, j) => (
-            <Rock key={`rock-${i}-${j}`} position={pos} />
-          ))}
-          {/* Flowers on valley */}
-          {randomPointsOnValley(v.position, v.scale, 3).map((pos, j) => (
-            <Flower key={`flower-${i}-${j}`} position={pos} />
-          ))}
+          {/* Only one tree per valley, foliage only */}
+          {randomPointsOnValley(v.position, v.scale, 1).map((pos, j) => {
+            const type = Math.floor(Math.random()*3);
+            if (type === 0) {
+              return (
+                <mesh key={`tree-${i}-${j}`} position={[pos[0], pos[1] + 0.35, pos[2]]}>
+                  <coneGeometry args={[0.25, 0.5, 12]} />
+                  <meshStandardMaterial color="#3cb371" />
+                </mesh>
+              );
+            } else if (type === 1) {
+              return (
+                <mesh key={`tree-${i}-${j}`} position={[pos[0], pos[1] + 0.4, pos[2]]}>
+                  <sphereGeometry args={[0.22, 16, 16]} />
+                  <meshStandardMaterial color="#388e3c" />
+                </mesh>
+              );
+            } else {
+              return (
+                <mesh key={`tree-${i}-${j}`} position={[pos[0], pos[1] + 0.38, pos[2]]}>
+                  <dodecahedronGeometry args={[0.22]} />
+                  <meshStandardMaterial color="#43a047" />
+                </mesh>
+              );
+            }
+          })}
         </React.Fragment>
       ))}
-      {/* Sun */}
-      <Sun position={[8, 14, -18]} scale={1.7} />
       {/* Clouds removed */}
-      {/* Flowers (instanced by color) */}
-      {flowersByColor.map((flowerGroup, idx) => (
+      {/* Instanced flower stems */}
+      {instancedData.flowersByColor.map((flowerGroup, idx) => (
         <Instances key={idx} limit={flowerGroup.length}>
-          {/* Stem */}
           <cylinderGeometry args={[0.02, 0.02, 0.08, 6]} />
           <meshStandardMaterial color="#43a047" />
           {flowerGroup.map((f, i) => (
@@ -920,39 +1007,78 @@ function Scene({ onUfoClick }) {
           ))}
         </Instances>
       ))}
-      {flowersByColor.map((flowerGroup, idx) => (
+      
+      {/* Instanced flower heads */}
+      {instancedData.flowersByColor.map((flowerGroup, idx) => (
         <Instances key={'head-' + idx} limit={flowerGroup.length}>
-          {/* Flower head */}
           <sphereGeometry args={[0.04, 8, 8]} />
-          <meshStandardMaterial color={flowerColors[idx]} />
+          <meshStandardMaterial color={FLOWER_COLORS[idx]} />
           {flowerGroup.map((f, i) => (
             <Instance key={i} position={[f.position[0], f.position[1] + 0.06, f.position[2]]} />
           ))}
         </Instances>
       ))}
-      {/* Rocks (instanced) */}
-      <Instances limit={allRockData.length}>
+      
+      {/* Instanced rocks */}
+      <Instances limit={instancedData.rocks.length}>
         <sphereGeometry args={[0.15, 8, 8]} />
         <meshStandardMaterial color="#888" />
-        {allRockData.map((pos, i) => (
+        {instancedData.rocks.map((pos, i) => (
           <Instance key={i} position={pos} />
         ))}
       </Instances>
     </>
   );
-}
+});
 
-function MainLayout() {
+// Optimized MainLayout Component
+const MainLayout = React.memo(function MainLayout() {
   const [showHero, setShowHero] = useState(false);
   const [showInstruction, setShowInstruction] = useState(true);
   const [showGameBox, setShowGameBox] = useState(false);
-  const handleUfoClick = () => {
+  const [showFormModal, setShowFormModal] = useState(false);
+  const [formStep, setFormStep] = useState(1);
+  const [showLoadingScreen, setShowLoadingScreen] = useState(false);
+  const [showResultScreen, setShowResultScreen] = useState(false);
+  
+  const handleUfoClick = useCallback(() => {
     setShowGameBox(true);
     setShowHero(false);
-  };
-  const handleGetStarted = () => {
+  }, []);
+  
+  const handleGetStarted = useCallback(() => {
     setShowGameBox(false);
-  };
+    setShowFormModal(true);
+    setFormStep(1);
+  }, []);
+  
+  const handleDismissInstruction = useCallback(() => {
+    setShowInstruction(false);
+  }, []);
+
+  // In MainLayout state, ensure you have a handler to close the game box
+  const handleCloseGameBox = useCallback(() => {
+    setShowGameBox(false);
+    setUfoMovedAside(false);
+  }, []);
+  const handleCloseFormModal = useCallback(() => {
+    setShowFormModal(false);
+  }, []);
+  const handleNextStep = useCallback(() => setFormStep(s => Math.min(s + 1, 5)), []);
+  const handlePrevStep = useCallback(() => setFormStep(s => Math.max(s - 1, 1)), []);
+
+  const handleFormSubmit = useCallback((e) => {
+    e.preventDefault();
+    setShowFormModal(false);
+    setShowLoadingScreen(true);
+    setTimeout(() => {
+      setShowLoadingScreen(false);
+      setShowResultScreen(true);
+    }, 2000);
+  }, []);
+  const handleCloseResultScreen = useCallback(() => {
+    setShowResultScreen(false);
+  }, []);
   return (
     <>
       <Header />
@@ -968,21 +1094,33 @@ function MainLayout() {
             <div className="flex flex-col items-center">
               {/* UFO image as character */}
               <img src={ufoImg} alt="UFO" className="w-28 h-28 object-contain drop-shadow-xl mb-0" style={{ marginBottom: '-1.5rem', zIndex: 2 }} />
-              {/* Speech bubble with tail */}
-              <div className="relative bg-white rounded-3xl shadow-2xl px-10 pt-8 pb-7 flex flex-col items-center max-w-md w-full border-4 border-blue-200 animate-fade-in" style={{ zIndex: 1 }}>
+              {/* Dialogue box with close 'X' button */}
+              <div className="relative bg-white rounded-2xl shadow-xl px-8 pt-8 pb-7 flex flex-col items-center max-w-md w-full border border-gray-200">
+                {/* Close 'X' button */}
+                <button
+                  className="absolute top-3 right-4 text-2xl text-gray-400 hover:text-red-500 font-bold focus:outline-none"
+                  onClick={handleCloseGameBox}
+                  aria-label="Close"
+                >
+                  ×
+                </button>
                 {/* Tail */}
                 <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[22px] border-l-transparent border-r-[22px] border-r-transparent border-b-[28px] border-b-white drop-shadow-md"></div>
-                <h2 className="text-2xl md:text-3xl font-bold text-blue-700 mb-2 text-center">Unlock Property Insights</h2>
-                <h3 className="text-lg md:text-xl font-semibold text-purple-600 mb-6 text-center">Using AI</h3>
+                <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2 text-center">
+                  Unlock Powerful Property Insights
+                </h2>
+                <h3 className="text-base md:text-lg font-medium text-gray-500 mb-4 text-center">
+                  AI-driven analysis for smarter real estate decisions.
+                </h3>
+                <div className="mb-6 text-center text-blue-500 font-semibold text-base md:text-lg">
+                  Start exploring your city’s potential.
+                </div>
                 <button
-                  className="mt-2 px-8 py-3 bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 hover:from-blue-700 hover:via-purple-700 hover:to-green-700 text-white font-bold rounded-full text-lg shadow-xl transition-all duration-300 hover:scale-110 hover:shadow-blue-500/50 border-2 border-blue-400/30"
+                  className="mt-2 px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-700 hover:to-blue-500 text-white font-bold rounded-full text-lg shadow-md transition-all duration-200 flex items-center gap-2"
                   onClick={handleGetStarted}
                 >
-                  <span className="flex items-center gap-2">
-                    <span className="animate-pulse">👾</span>
-                    Get Started
-                    <span className="animate-pulse">🤖</span>
-                  </span>
+                  Get Started
+                  <span className="text-xl">→</span>
                 </button>
               </div>
             </div>
@@ -997,15 +1135,348 @@ function MainLayout() {
             <span className="font-semibold">Click the UFO to get started!</span>
             <button
               className="ml-4 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-bold shadow transition-all duration-200"
-              onClick={() => setShowInstruction(false)}
+              onClick={handleDismissInstruction}
             >
               Understood
             </button>
           </div>
         </div>
+        {/* Property Form Modal (Multi-step) */}
+        {showFormModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm transition-all">
+            <div className="flex flex-col items-center">
+              <div className="relative bg-white rounded-2xl shadow-xl px-8 pt-8 pb-7 flex flex-col items-center max-w-lg w-full border border-gray-200">
+                {/* Close 'X' button */}
+                <button
+                  className="absolute top-3 right-4 text-2xl text-gray-400 hover:text-red-500 font-bold focus:outline-none"
+                  onClick={handleCloseFormModal}
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+                <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2 text-center">Property Listing Form</h2>
+                <div className="mb-4 text-gray-500 text-sm">Step {formStep} of 5</div>
+                <form className="w-full space-y-6" onSubmit={handleFormSubmit}>
+                  {/* Step 1: Basic Property Information */}
+                  {formStep === 1 && (
+                    <div>
+                      <h3 className="font-semibold text-blue-700 mb-2">🏠 Basic Property Information</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-gray-600 text-sm mb-1">Property Title</label>
+                          <input type="text" className="w-full border rounded px-3 py-2" defaultValue="3 BHK in New York City" />
+                        </div>
+                        <div>
+                          <label className="block text-gray-600 text-sm mb-1">Property Type</label>
+                          <select className="w-full border rounded px-3 py-2" defaultValue="Apartment">
+                            <option>Apartment</option>
+                            <option>House</option>
+                            <option>Villa</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-gray-600 text-sm mb-1">Bedrooms (BHK)</label>
+                          <select className="w-full border rounded px-3 py-2" defaultValue="3">
+                            <option>1</option><option>2</option><option>3</option><option>4</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-gray-600 text-sm mb-1">Bathrooms</label>
+                          <select className="w-full border rounded px-3 py-2" defaultValue="2">
+                            <option>1</option><option>2</option><option>3</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-gray-600 text-sm mb-1">Area (sq.ft)</label>
+                          <input type="number" className="w-full border rounded px-3 py-2" defaultValue="1200" />
+                        </div>
+                        <div>
+                          <label className="block text-gray-600 text-sm mb-1">Carpet Area (optional)</label>
+                          <input type="number" className="w-full border rounded px-3 py-2" defaultValue="950" />
+                        </div>
+                        <div>
+                          <label className="block text-gray-600 text-sm mb-1">Year Built</label>
+                          <input type="number" className="w-full border rounded px-3 py-2" defaultValue="2015" />
+                        </div>
+                        <div>
+                          <label className="block text-gray-600 text-sm mb-1">Furnishing Status</label>
+                          <select className="w-full border rounded px-3 py-2" defaultValue="Furnished">
+                            <option>Furnished</option>
+                            <option>Semi-furnished</option>
+                            <option>Unfurnished</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-gray-600 text-sm mb-1">Floor Number</label>
+                          <input type="number" className="w-full border rounded px-3 py-2" defaultValue="3" />
+                        </div>
+                        <div>
+                          <label className="block text-gray-600 text-sm mb-1">Total Floors</label>
+                          <input type="number" className="w-full border rounded px-3 py-2" defaultValue="10" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {/* Step 2: Location Details */}
+                  {formStep === 2 && (
+                    <div>
+                      <h3 className="font-semibold text-blue-700 mb-2">📍 Location Details</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-gray-600 text-sm mb-1">City</label>
+                          <select className="w-full border rounded px-3 py-2" defaultValue="New York">
+                            <option>New York</option>
+                            <option>Mumbai</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-gray-600 text-sm mb-1">Locality / Area</label>
+                          <input type="text" className="w-full border rounded px-3 py-2" defaultValue="Manhattan" />
+                        </div>
+                        <div>
+                          <label className="block text-gray-600 text-sm mb-1">Pin Code / ZIP</label>
+                          <input type="number" className="w-full border rounded px-3 py-2" defaultValue="10001" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {/* Step 3: Amenities & Features */}
+                  {formStep === 3 && (
+                    <div>
+                      <h3 className="font-semibold text-blue-700 mb-2">🚪 Amenities & Features</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <label className="flex items-center gap-2"><input type="checkbox" defaultChecked /> Parking Available</label>
+                        <label className="flex items-center gap-2"><input type="checkbox" defaultChecked /> Power Backup</label>
+                        <label className="flex items-center gap-2"><input type="checkbox" defaultChecked /> Lift / Elevator</label>
+                        <label className="flex items-center gap-2"><input type="checkbox" defaultChecked /> Security / CCTV</label>
+                        <label className="flex items-center gap-2"><input type="checkbox" defaultChecked /> Balcony</label>
+                        <label className="flex items-center gap-2"><input type="checkbox" defaultChecked /> Gated Community</label>
+                      </div>
+                    </div>
+                  )}
+                  {/* Step 4: Pricing Information */}
+                  {formStep === 4 && (
+                    <div>
+                      <h3 className="font-semibold text-blue-700 mb-2">💰 Pricing Information</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-gray-600 text-sm mb-1">Asking Price ($/₹)</label>
+                          <input type="number" className="w-full border rounded px-3 py-2" defaultValue="120000" />
+                        </div>
+                        <div className="flex items-center gap-2 mt-6 md:mt-0">
+                          <input type="checkbox" defaultChecked /> Negotiable
+                        </div>
+                        <div>
+                          <label className="block text-gray-600 text-sm mb-1">Maintenance Fees (optional)</label>
+                          <input type="number" className="w-full border rounded px-3 py-2" defaultValue="300" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {/* Step 5: Media Upload */}
+                  {formStep === 5 && (
+                    <div>
+                      <h3 className="font-semibold text-blue-700 mb-2">📷 Media Upload (Optional)</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-gray-600 text-sm mb-1">Property Images</label>
+                          <input type="file" className="w-full" multiple />
+                        </div>
+                        <div>
+                          <label className="block text-gray-600 text-sm mb-1">Property Video Tour (YouTube link)</label>
+                          <input type="text" className="w-full border rounded px-3 py-2" placeholder="https://youtube.com/..." defaultValue="https://youtube.com/mocktour" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {/* Step Navigation Buttons */}
+                  <div className="flex justify-between pt-4">
+                    {formStep > 1 ? (
+                      <button type="button" onClick={handlePrevStep} className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-full text-base shadow-sm transition-all duration-200">Back</button>
+                    ) : <span />}
+                    {formStep < 5 ? (
+                      <button type="button" onClick={handleNextStep} className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-full text-lg shadow-md transition-all duration-200">Next</button>
+                    ) : (
+                      <button type="submit" className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-full text-lg shadow-md transition-all duration-200">Submit</button>
+                    )}
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Loading Screen with UFO scanning */}
+        {showLoadingScreen && (
+          <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/60">
+            <div className="flex flex-col items-center">
+              <div style={{ height: 320, width: 320 }}>
+                <Canvas camera={{ position: [0, 2, 4], fov: 40 }}>
+                  <ambientLight intensity={1.2} />
+                  <directionalLight position={[10, 20, 10]} intensity={1.2} />
+                  <UFO position={[0, 1.2, 0]} scanning={true} />
+                </Canvas>
+              </div>
+              <div className="mt-8 text-2xl text-blue-200 font-semibold animate-pulse">Analyzing property…</div>
+            </div>
+          </div>
+        )}
+        {/* Result Screen with comprehensive analysis */}
+        {showResultScreen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              {/* Header with UFO */}
+              <div className="bg-gradient-to-r from-blue-600 to-blue-400 text-white p-6 rounded-t-2xl flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div style={{ height: 60, width: 60 }}>
+                    <Canvas camera={{ position: [0, 2, 4], fov: 40 }}>
+                      <ambientLight intensity={1.2} />
+                      <directionalLight position={[10, 20, 10]} intensity={1.2} />
+                      <UFO position={[0, 1.2, 0]} scanning={false} />
+                    </Canvas>
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold">Property Analysis Complete</h2>
+                    <p className="text-blue-100">AI-powered prediction results</p>
+                  </div>
+                </div>
+                <button
+                  className="text-white hover:text-red-200 text-2xl font-bold focus:outline-none"
+                  onClick={handleCloseResultScreen}
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* Core Output Section */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Predicted Price */}
+                  <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-xl border border-green-200">
+                    <div className="text-sm text-green-600 font-medium mb-1">🎯 Predicted Price</div>
+                    <div className="text-2xl font-bold text-green-700">₹1.05 Cr</div>
+                    <div className="text-sm text-green-600">$127,000</div>
+                    <div className="text-xs text-green-500 mt-1">Price Range: ₹98L – ₹1.12 Cr</div>
+                  </div>
+
+                  {/* Confidence Score */}
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-xl border border-blue-200">
+                    <div className="text-sm text-blue-600 font-medium mb-1">📊 Confidence Score</div>
+                    <div className="text-2xl font-bold text-blue-700">91%</div>
+                    <div className="w-full bg-blue-200 rounded-full h-2 mt-2">
+                      <div className="bg-blue-600 h-2 rounded-full" style={{ width: '91%' }}></div>
+                    </div>
+                    <div className="text-xs text-blue-500 mt-1">High confidence prediction</div>
+                  </div>
+
+                  {/* Location */}
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-xl border border-purple-200">
+                    <div className="text-sm text-purple-600 font-medium mb-1">📍 Location</div>
+                    <div className="text-lg font-bold text-purple-700">Andheri East</div>
+                    <div className="text-sm text-purple-600">Mumbai, Maharashtra</div>
+                    <div className="text-xs text-purple-500 mt-1">High demand zone</div>
+                  </div>
+                </div>
+
+                {/* Property Summary */}
+                <div className="bg-gray-50 p-4 rounded-xl">
+                  <h3 className="font-bold text-gray-800 mb-3">📌 Property Summary</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-600">Property:</span>
+                      <div className="font-medium">3 BHK Apartment</div>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Area:</span>
+                      <div className="font-medium">1200 sq.ft</div>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Furnishing:</span>
+                      <div className="font-medium">Semi-Furnished</div>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Age:</span>
+                      <div className="font-medium">8 Years Old</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Visualizations Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Price Trend */}
+                  <div className="bg-white border border-gray-200 rounded-xl p-4">
+                    <h4 className="font-semibold text-gray-800 mb-3">📈 Price Trend</h4>
+                    <img src={trendChart} alt="Price Trend" className="w-full h-32 object-contain" />
+                    <p className="text-xs text-gray-600 mt-2">Property prices in this locality increased 12% YoY</p>
+                  </div>
+
+                  {/* Locality Comparison */}
+                  <div className="bg-white border border-gray-200 rounded-xl p-4">
+                    <h4 className="font-semibold text-gray-800 mb-3">📍 Locality Comparison</h4>
+                    <img src={comparisonChart} alt="Locality Comparison" className="w-full h-32 object-contain" />
+                    <p className="text-xs text-gray-600 mt-2">Your area shows strong growth potential</p>
+                  </div>
+
+                  {/* Feature Importance */}
+                  <div className="bg-white border border-gray-200 rounded-xl p-4">
+                    <h4 className="font-semibold text-gray-800 mb-3">🏷 Feature Importance</h4>
+                    <img src={featureImportance} alt="Feature Importance" className="w-full h-32 object-contain" />
+                    <p className="text-xs text-gray-600 mt-2">Area and location are key factors</p>
+                  </div>
+
+                  {/* Similar Properties */}
+                  <div className="bg-white border border-gray-200 rounded-xl p-4">
+                    <h4 className="font-semibold text-gray-800 mb-3">🏠 Similar Properties</h4>
+                    <img src={similarProperties} alt="Similar Properties" className="w-full h-32 object-contain" />
+                    <p className="text-xs text-gray-600 mt-2">Based on 4 comparable properties</p>
+                  </div>
+                </div>
+
+                {/* Top Factors */}
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-4 rounded-xl border border-amber-200">
+                  <h3 className="font-bold text-amber-800 mb-3">🏷 Top Factors Influencing Price</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-amber-700">Area (1200 sq.ft):</span>
+                      <span className="font-medium text-amber-800">35% impact</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-amber-700">Locality (High Demand):</span>
+                      <span className="font-medium text-amber-800">25% impact</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-amber-700">Floor (3/10):</span>
+                      <span className="font-medium text-amber-800">20% impact</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-amber-700">Age (8 years):</span>
+                      <span className="font-medium text-amber-800">12% impact</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Call-to-Action Buttons */}
+                <div className="flex flex-wrap gap-3 justify-center">
+                  <button className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-full text-sm transition-all duration-200">
+                    🔁 Try Again
+                  </button>
+                  <button className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-full text-sm transition-all duration-200">
+                    💾 Save as PDF
+                  </button>
+                  <button className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-full text-sm transition-all duration-200">
+                    🔗 Share Result
+                  </button>
+                  <button className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-full text-sm transition-all duration-200">
+                    📞 Contact Agent
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </section>
     </>
   );
-}
+});
 
 export default MainLayout;
