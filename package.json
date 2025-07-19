@@ -1,8 +1,0 @@
-{
-  "dependencies": {
-    "@react-three/drei": "^10.4.3",
-    "@react-three/fiber": "^9.2.0",
-    "react-icons": "^5.5.0",
-    "three": "^0.178.0"
-  }
-}
