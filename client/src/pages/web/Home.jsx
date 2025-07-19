@@ -1,5 +1,5 @@
 import React from 'react'
-import MainLayout from '../../layouts/web/MainLayout'
+import MainLayout from '../../components/layouts/web/MainLayout'
 
 function Home() {
   return (
