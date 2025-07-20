@@ -46,7 +46,7 @@ export const SHARED_MATERIALS = {
   gray: new THREE.MeshStandardMaterial({ color: '#888888' }),
   lightGray: new THREE.MeshStandardMaterial({ color: '#bbbbbb' }),
   ground: new THREE.MeshStandardMaterial({ color: '#4caf50' }),
-  road: new THREE.MeshStandardMaterial({ color: '#111' }),
+  road: new THREE.MeshStandardMaterial({ color: '#888' }),
   footpath: new THREE.MeshStandardMaterial({ color: '#e0e0e0' }),
   cyanLight: new THREE.MeshStandardMaterial({ color: '#00ffff', transparent: true, opacity: 1, emissive: '#00ffff', emissiveIntensity: 2 }),
   streetLight: new THREE.MeshStandardMaterial({ color: '#fffde4', emissive: '#fffde4', emissiveIntensity: 1.2 }),
