@@ -11,7 +11,7 @@ const navLinks = [
 ];
 
 
-function Header() {
+function Header({ onAboutClick, onHowClick, onContactClick, onLoginClick }) {
   const [active, setActive] = useState('Home');
   return (
     <>
@@ -31,7 +31,21 @@ function Header() {
                 key={link.label}
                 href={link.href}
                 className="relative text-gray-200 hover:text-blue-400 text-sm font-medium px-2 transition-colors duration-150"
-                onClick={() => setActive(link.label)}
+                onClick={e => {
+                  setActive(link.label);
+                  if (link.label === 'About' && onAboutClick) {
+                    e.preventDefault();
+                    onAboutClick();
+                  }
+                  if (link.label === 'How it works' && onHowClick) {
+                    e.preventDefault();
+                    onHowClick();
+                  }
+                  if (link.label === 'Contact' && onContactClick) {
+                    e.preventDefault();
+                    onContactClick();
+                  }
+                }}
               >
                 <span>{link.label}</span>
                 <span
@@ -44,6 +58,7 @@ function Header() {
           <a
             href="#login"
             className="flex items-center gap-1 text-gray-200 hover:text-blue-400 text-sm font-semibold transition-colors px-3 py-1.5 rounded-full border border-white/10 bg-white/5 backdrop-blur-sm shadow-sm"
+            onClick={e => { e.preventDefault(); if (onLoginClick) onLoginClick(); }}
           >
             <FaUserCircle size={18} /> Login
           </a>
@@ -54,7 +69,12 @@ function Header() {
         {navLinks.map(link => (
           <button
             key={link.label}
-            onClick={() => setActive(link.label)}
+            onClick={() => {
+              setActive(link.label);
+              if (link.label === 'About' && onAboutClick) onAboutClick();
+              if (link.label === 'How it works' && onHowClick) onHowClick();
+              if (link.label === 'Contact' && onContactClick) onContactClick();
+            }}
             className={`flex flex-col items-center justify-center flex-1 text-xs transition-colors ${active === link.label ? 'text-blue-400' : 'text-gray-300'}`}
           >
             {link.icon}
@@ -63,7 +83,7 @@ function Header() {
         ))}
         {/* Login as last tab */}
         <button
-          onClick={() => setActive('Login')}
+          onClick={() => { setActive('Login'); if (onLoginClick) onLoginClick(); }}
           className={`flex flex-col items-center justify-center flex-1 text-xs transition-colors ${active === 'Login' ? 'text-blue-400' : 'text-gray-300'}`}
         >
           <FaUserCircle size={20} />
