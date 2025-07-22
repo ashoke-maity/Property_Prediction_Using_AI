@@ -3,8 +3,8 @@ const express = require('express');
 const app = express();
 
 // database connection
-const dbConnect = require('./configs/db');
-const mydb = dbConnect();
+const connectDB = require('./configs/db');
+connectDB();
 
 // router calls
 const userRouter = require('./routes/user.Route');

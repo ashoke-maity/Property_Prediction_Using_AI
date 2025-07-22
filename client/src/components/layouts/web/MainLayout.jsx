@@ -11,6 +11,9 @@ import ResultModal from '../../web/ResultModal';
 import { Scene } from '../../three/Scene'; // Import the main scene
 import UserAuthModal from '../../web/UserAuthModal';
 
+// Import API utilities
+import { predictPropertyPrice } from '../../../utils/api';
+
 // Import Leaflet CSS and fixes
 import 'leaflet/dist/leaflet.css';
 import '../../../utils/leafletFix';
@@ -65,12 +68,41 @@ const MainLayout = () => {
     setShowFormModal(false);
     setShowLoadingScreen(true);
     
-    // MOCK API CALL
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setPredictionResult({ price: '₹1.25 Cr' });
+    try {
+      console.log('Form data received:', formData);
+      
+      // Call the actual API
+      const result = await predictPropertyPrice(formData);
+      
+      // Format the result for display
+      const formattedPrice = `₹${(result.predicted_price / 100000).toFixed(2)} Lakhs`;
+      setPredictionResult({ 
+        price: formattedPrice,
+        rawPrice: result.predicted_price,
+        propertyDetails: {
+          title: formData.propertyTitle,
+          area: formData.area,
+          bhk: formData.bhk,
+          bathrooms: formData.bathrooms,
+          address: formData.address
+        }
+      });
 
-    setShowLoadingScreen(false);
-    setShowResultScreen(true);
+      setShowLoadingScreen(false);
+      setShowResultScreen(true);
+    } catch (error) {
+      console.error('Prediction failed:', error);
+      
+      // Show error in result modal
+      setPredictionResult({ 
+        error: true,
+        message: error.message || 'Failed to get price prediction. Please try again.',
+        price: 'Error'
+      });
+
+      setShowLoadingScreen(false);
+      setShowResultScreen(true);
+    }
   }, []);
 
   return (
