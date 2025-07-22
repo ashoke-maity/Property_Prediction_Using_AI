@@ -1,5 +1,7 @@
 const dotenv = require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
+const corsOptions = require('./middlewares/cors.Middleware');
 const app = express();
 
 // database connection
@@ -12,6 +14,7 @@ const predictionRouter = require('./routes/prediction.Route');
 
 // middleware
 app.use(express.json());
+app.use(cors(corsOptions));
 
 // user api routes
 app.use(process.env.USER_API_KEY, userRouter);

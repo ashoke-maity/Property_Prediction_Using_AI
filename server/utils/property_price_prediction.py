@@ -83,7 +83,7 @@ def predict():
         }), 400
 
 if __name__ == "__main__":
-    port = int(os.environ.get("FLASK_PORT", 5001))  # Default to 5001 if FLASK_PORT not set
+    port = int(os.environ.get("FLASK_PORT"))  # Default to 5001 if FLASK_PORT not set
     debug_mode = os.getenv("FLASK_DEBUG", "False").lower() == "true"
     
     print(f"🚀 Starting Flask server on port {port}")

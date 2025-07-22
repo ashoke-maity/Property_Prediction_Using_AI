@@ -1,7 +1,7 @@
 // API utility functions for communicating with the Node.js backend
 
-const API_BASE_URL = 'http://localhost:5000';
-const API_PREFIX = '/propertyPredict/user';
+const API_BASE_URL = import.meta.env.VITE_SERVER_ROUTE;
+const API_PREFIX = import.meta.env.VITE_USER_API_KEY;
 
 /**
  * Extract locality from address for AI model
