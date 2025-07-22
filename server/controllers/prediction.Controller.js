@@ -1,7 +1,5 @@
 const axios = require('axios');
 
-// IMPORTANT: Populate this array with ALL locality names from your training data.
-// The spelling and capitalization must be exact.
 const ALL_LOCALITIES = [
     'Whitefield', 'Sarjapur Road', 'Electronic City', 'Marathahalli', 
     'Raja Rajeshwari Nagar', 'Haralur Road', 'Hennur Road', 'Koramangala',
@@ -37,6 +35,30 @@ const extractLocalityFromAddress = (address) => {
 };
 
 /**
+ * Convert availability date to the format expected by the AI model
+ * @param {string} availability - 'Ready To Move' or 'specific_date'
+ * @param {string} availabilityDate - Date string in YYYY-MM-DD format
+ * @returns {string} - Formatted availability string for the model
+ */
+const formatAvailabilityForModel = (availability, availabilityDate) => {
+    if (availability === 'Ready To Move') {
+        return 'Ready To Move';
+    }
+    
+    if (availability === 'specific_date' && availabilityDate) {
+        // Convert YYYY-MM-DD to YY-MMM format (e.g., "2024-03-15" -> "24-Mar")
+        const date = new Date(availabilityDate);
+        const year = date.getFullYear().toString().slice(-2); // Get last 2 digits of year
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const month = months[date.getMonth()];
+        return `${year}-${month}`;
+    }
+    
+    return 'Ready To Move'; // Default fallback
+};
+
+/**
  * @desc    Predicts property price by calling the Flask AI service
  * @route   POST /api/predict/price
  * @access  Public (or add authentication middleware)
@@ -46,16 +68,25 @@ const predictPropertyPrice = async (req, res) => {
         console.log("Received prediction request:", req.body);
         
         // --- Get user input from the request (supporting both direct API calls and form data) ---
-        let { total_sqft, bath, balcony, BHK, locality, address, area, bathrooms, bhk } = req.body;
+        let { total_sqft, bath, balcony, BHK, locality, address, area, bathrooms, bhk, areaType, availability, availabilityDate } = req.body;
         
         // Handle form data format (from frontend form)
         if (!total_sqft && area) total_sqft = area;
         if (!bath && bathrooms) bath = bathrooms;
         if (!BHK && bhk) BHK = bhk;
-        if (!locality && address) locality = extractLocalityFromAddress(address);
         
-        // Set default balcony if not provided
+        // Use the locality from user input (map selection) directly
+        // No need to extract from address - use whatever locality the user provides
+        if (!locality) {
+            locality = 'User Selected Location'; // Default name for map-selected locations
+        }
+        
+        console.log(`Using user-selected locality: ${locality}`);
+        
+        // Set defaults if not provided
         if (!balcony) balcony = 1;
+        if (!areaType) areaType = 'Super built-up  Area';
+        if (!availability) availability = 'Ready To Move';
 
         // --- Validate the input ---
         if (!total_sqft || !bath || !BHK) {
@@ -64,61 +95,62 @@ const predictPropertyPrice = async (req, res) => {
             });
         }
 
-        // Validate locality
-        if (!ALL_LOCALITIES.includes(locality)) {
-            console.log(`Locality '${locality}' not found, using default 'Whitefield'`);
-            locality = 'Whitefield'; // Use default instead of throwing error
-        }
-
-        // --- Transform data for the Python model ---
-        const payload = {
-            'total_sqft': Number(total_sqft),
-            'bath': Number(bath),
-            'balcony': Number(balcony) || 1,
-            'BHK': Number(BHK),
-            // Set default values for other required features
-            'area_type_Carpet  Area': 0,
-            'area_type_Plot  Area': 0,
-            'area_type_Super built-up  Area': 1, // Default to Super built-up area
-            'availability_Ready To Move': 1, // Default to ready to move
+        // Format availability for the model
+        const formattedAvailability = formatAvailabilityForModel(availability, availabilityDate);
+        
+        // --- Transform data for the Python model (Simplified for Dynamic Locations) ---
+        // Helper function to safely convert to number and handle NaN
+        const safeNumber = (value, defaultValue = 0) => {
+            const num = Number(value);
+            return isNaN(num) ? defaultValue : num;
         };
 
-        // Set all availability columns to 0 first
-        const availabilityColumns = [
-            'availability_14-Nov', 'availability_15-Aug', 'availability_15-Dec', 'availability_15-Jun',
-            'availability_15-Nov', 'availability_15-Oct', 'availability_16-Dec', 'availability_16-Jan',
-            'availability_16-Jul', 'availability_16-Mar', 'availability_16-Nov', 'availability_16-Oct',
-            'availability_16-Sep', 'availability_17-Apr', 'availability_17-Aug', 'availability_17-Dec',
-            'availability_17-Feb', 'availability_17-Jan', 'availability_17-Jul', 'availability_17-Jun',
-            'availability_17-Mar', 'availability_17-May', 'availability_17-Nov', 'availability_17-Oct',
-            'availability_17-Sep', 'availability_18-Apr', 'availability_18-Aug', 'availability_18-Dec',
-            'availability_18-Feb', 'availability_18-Jan', 'availability_18-Jul', 'availability_18-Jun',
-            'availability_18-Mar', 'availability_18-May', 'availability_18-Nov', 'availability_18-Oct',
-            'availability_18-Sep', 'availability_19-Apr', 'availability_19-Aug', 'availability_19-Dec',
-            'availability_19-Feb', 'availability_19-Jan', 'availability_19-Jul', 'availability_19-Jun',
-            'availability_19-Mar', 'availability_19-May', 'availability_19-Nov', 'availability_19-Oct',
-            'availability_19-Sep', 'availability_20-Apr', 'availability_20-Aug', 'availability_20-Dec',
-            'availability_20-Feb', 'availability_20-Jan', 'availability_20-Jul', 'availability_20-Jun',
-            'availability_20-Mar', 'availability_20-May', 'availability_20-Nov', 'availability_20-Oct',
-            'availability_20-Sep', 'availability_21-Aug', 'availability_21-Dec', 'availability_21-Feb',
-            'availability_21-Jan', 'availability_21-Jul', 'availability_21-Jun', 'availability_21-Mar',
-            'availability_21-May', 'availability_21-Nov', 'availability_21-Oct', 'availability_21-Sep',
-            'availability_22-Dec', 'availability_22-Jan', 'availability_22-Jun', 'availability_22-Mar',
-            'availability_22-May', 'availability_22-Nov'
-        ];
-        
-        availabilityColumns.forEach(col => {
-            payload[col] = 0;
+        // Debug logging
+        console.log("Input values before conversion:", {
+            total_sqft, bath, balcony, BHK, locality, areaType, availability: formattedAvailability
         });
 
-        // One-hot encode the location field (note: it's 'location_' not 'locality_')
-        ALL_LOCALITIES.forEach(loc => {
-            const columnName = `location_${loc}`; // Must match your model's column names
-            payload[columnName] = (loc === locality) ? 1 : 0;
-        });
+        // Simplified payload - only send essential features
+        // The Flask API will handle creating all other features with default values
+        const payload = {
+            'total_sqft': safeNumber(total_sqft),
+            'bath': safeNumber(bath),
+            'balcony': safeNumber(balcony, 1),
+            'BHK': safeNumber(BHK),
+            // Area type one-hot encoding
+            'area_type_Carpet  Area': (areaType === 'Carpet  Area') ? 1 : 0,
+            'area_type_Plot  Area': (areaType === 'Plot  Area') ? 1 : 0,
+            'area_type_Super built-up  Area': (areaType === 'Super built-up  Area') ? 1 : 0,
+            // Availability - only set the relevant one
+            'availability_Ready To Move': (formattedAvailability === 'Ready To Move') ? 1 : 0,
+            // For dynamic locations, always use location_other
+            'location_other': 1
+        };
+
+        // If availability is not "Ready To Move", set the specific date
+        if (formattedAvailability !== 'Ready To Move') {
+            const availabilityColumnName = `availability_${formattedAvailability}`;
+            payload[availabilityColumnName] = 1;
+            payload['availability_Ready To Move'] = 0; // Override the Ready To Move
+        }
         
-        // Set location_other to 0 (since we're using a specific locality)
-        payload['location_other'] = 0;
+        console.log(`🗺️ Using dynamic location: ${locality} (mapped to location_other=1)`);
+
+        // --- Validate payload for NaN values ---
+        const hasNaN = Object.entries(payload).some(([key, value]) => {
+            if (typeof value === 'number' && isNaN(value)) {
+                console.error(`NaN detected in payload for key: ${key}, value: ${value}`);
+                return true;
+            }
+            return false;
+        });
+
+        if (hasNaN) {
+            return res.status(400).json({
+                message: 'Invalid numeric values detected in input data',
+                error: 'INVALID_INPUT'
+            });
+        }
 
         // --- Call the Flask API 🐍 ---
         const flaskApiUrl = `http://127.0.0.1:${process.env.FLASK_PORT || 5001}/predict`;
@@ -139,10 +171,10 @@ const predictPropertyPrice = async (req, res) => {
             ...response.data,
             locality_used: locality,
             input_data: {
-                total_sqft: Number(total_sqft),
-                bath: Number(bath),
-                balcony: Number(balcony) || 1,
-                BHK: Number(BHK),
+                total_sqft: safeNumber(total_sqft),
+                bath: safeNumber(bath),
+                balcony: safeNumber(balcony, 1),
+                BHK: safeNumber(BHK),
                 locality: locality
             }
         });

@@ -1,4 +1,3 @@
-// cors file
 const dotenv = require('dotenv').config();
 const cors = require('cors');
 var corsOptions = {

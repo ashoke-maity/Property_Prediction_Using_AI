@@ -74,8 +74,17 @@ const MainLayout = () => {
       // Call the actual API
       const result = await predictPropertyPrice(formData);
       
+      // Debug logging
+      console.log('Full API result:', result);
+      console.log('Predicted price value:', result.predicted_price);
+      console.log('Type of predicted price:', typeof result.predicted_price);
+      
       // Format the result for display
-      const formattedPrice = `₹${(result.predicted_price / 100000).toFixed(2)} Lakhs`;
+      const predictedPrice = result.predicted_price || 0;
+      // Check if the price is already in lakhs or needs conversion
+      const formattedPrice = predictedPrice > 1000 
+        ? `₹${(predictedPrice / 100000).toFixed(2)} Lakhs`  // If > 1000, assume it's in rupees
+        : `₹${predictedPrice.toFixed(2)} Lakhs`;            // If < 1000, assume it's already in lakhs
       setPredictionResult({ 
         price: formattedPrice,
         rawPrice: result.predicted_price,

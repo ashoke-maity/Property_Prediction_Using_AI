@@ -1,9 +1,10 @@
 import React, { useState, useCallback } from 'react';
 import LeafletMapPicker from './LeafletMapPicker';
-import { FaHome, FaMapMarkerAlt, FaCheckCircle } from 'react-icons/fa';
+import { FaHome, FaMapMarkerAlt, FaCheckCircle, FaCalendarAlt, FaRulerCombined } from 'react-icons/fa';
 
 const steps = [
   { label: 'Property Info', icon: <FaHome /> },
+  { label: 'Area & Availability', icon: <FaRulerCombined /> },
   { label: 'Location', icon: <FaMapMarkerAlt /> },
   { label: 'Review', icon: <FaCheckCircle /> },
 ];
@@ -14,16 +15,19 @@ const PropertyFormModal = ({ show, onClose, onSubmit }) => {
   const [formData, setFormData] = useState({
     propertyTitle: '',
     area: '', // total_sqft for AI model
-    bhk: '', // BHK for AI model - empty for placeholder
-    bathrooms: '', // bath for AI model - empty for placeholder
-    balcony: '', // balcony for AI model - empty for placeholder
+    bhk: '', // BHK for AI model
+    bathrooms: '', // bath for AI model
+    balcony: '', // balcony for AI model
+    areaType: 'Super built-up  Area', // Default to Super built-up Area
+    availability: 'Ready To Move', // Default to Ready To Move
+    availabilityDate: '', // For specific dates
     address: '',
     lat: 0,
     lng: 0,
   });
 
-  // Handlers for form logic - updated for 3 steps
-  const handleNextStep = useCallback(() => setFormStep(s => Math.min(s + 1, 3)), []);
+  // Handlers for form logic - updated for 4 steps
+  const handleNextStep = useCallback(() => setFormStep(s => Math.min(s + 1, 4)), []);
   const handlePrevStep = useCallback(() => setFormStep(s => Math.max(s - 1, 1)), []);
   
   const handleInputChange = (e) => {
@@ -46,7 +50,7 @@ const PropertyFormModal = ({ show, onClose, onSubmit }) => {
     onSubmit(formData);
   };
 
-  // Validation logic for 3 steps
+  // Validation logic for 4 steps
   const validateStep = () => {
     if (formStep === 1) {
       return formData.propertyTitle.trim() && 
@@ -56,9 +60,14 @@ const PropertyFormModal = ({ show, onClose, onSubmit }) => {
       // Note: balcony is optional, so not included in validation
     }
     if (formStep === 2) {
+      return formData.areaType && 
+             formData.availability && 
+             (formData.availability !== 'specific_date' || formData.availabilityDate);
+    }
+    if (formStep === 3) {
       return formData.address && formData.lat && formData.lng;
     }
-    return true; // Step 3 is just review
+    return true; // Step 4 is just review
   };
   const isStepValid = validateStep();
 
@@ -197,8 +206,80 @@ const PropertyFormModal = ({ show, onClose, onSubmit }) => {
             </div>
           )}
 
-          {/* Step 2: Location Selection */}
+          {/* Step 2: Area Type & Availability */}
           {formStep === 2 && (
+            <div>
+              <h3 className="font-semibold text-blue-700 mb-4 flex items-center gap-2">
+                <FaRulerCombined /> Area Type & Availability
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-gray-600 text-sm mb-1">
+                    Area Type <span className="text-red-500">*</span>
+                  </label>
+                  <select 
+                    name="areaType" 
+                    className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                    value={formData.areaType} 
+                    onChange={handleInputChange} 
+                    required
+                  >
+                    <option value="Super built-up  Area">Super Built-up Area</option>
+                    <option value="Carpet  Area">Carpet Area</option>
+                    <option value="Plot  Area">Plot Area</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Super built-up area includes common areas, carpet area is usable space, plot area is land size.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-gray-600 text-sm mb-1">
+                    Availability <span className="text-red-500">*</span>
+                  </label>
+                  <select 
+                    name="availability" 
+                    className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                    value={formData.availability} 
+                    onChange={handleInputChange} 
+                    required
+                  >
+                    <option value="Ready To Move">Ready To Move</option>
+                    <option value="specific_date">Specific Date</option>
+                  </select>
+                </div>
+
+                {formData.availability === 'specific_date' && (
+                  <div>
+                    <label className="block text-gray-600 text-sm mb-1">
+                      Available From <span className="text-red-500">*</span>
+                    </label>
+                    <input 
+                      name="availabilityDate" 
+                      type="date" 
+                      className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                      value={formData.availabilityDate} 
+                      onChange={handleInputChange} 
+                      min={new Date().toISOString().split('T')[0]}
+                      required={formData.availability === 'specific_date'}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Select when the property will be available for possession.
+                    </p>
+                  </div>
+                )}
+
+                <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                  <p className="text-xs text-yellow-700 font-medium">
+                    💡 These details help our AI model provide more accurate price predictions based on area type and availability timeline.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Location Selection */}
+          {formStep === 3 && (
             <div>
               <h3 className="font-semibold text-blue-700 mb-4 flex items-center gap-2">
                 <FaMapMarkerAlt /> Location Selection
@@ -219,8 +300,8 @@ const PropertyFormModal = ({ show, onClose, onSubmit }) => {
             </div>
           )}
 
-          {/* Step 3: Review & Submit */}
-          {formStep === 3 && (
+          {/* Step 4: Review & Submit */}
+          {formStep === 4 && (
             <div>
               <h3 className="font-semibold text-blue-700 mb-4 flex items-center gap-2">
                 <FaCheckCircle /> Review & Submit
@@ -232,7 +313,7 @@ const PropertyFormModal = ({ show, onClose, onSubmit }) => {
                 </div>
                 <div className="flex justify-between">
                   <span className="font-medium">Total Area:</span>
-                  <span>{formData.area} sq.ft</span>
+                  <span>{formData.area} sq.ft ({formData.areaType})</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-medium">Configuration:</span>
@@ -240,7 +321,11 @@ const PropertyFormModal = ({ show, onClose, onSubmit }) => {
                 </div>
                 <div className="flex justify-between">
                   <span className="font-medium">Balconies:</span>
-                  <span>{formData.balcony}</span>
+                  <span>{formData.balcony || 'Not specified'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Availability:</span>
+                  <span>{formData.availability === 'specific_date' ? formData.availabilityDate : formData.availability}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-medium">Location:</span>
@@ -267,7 +352,7 @@ const PropertyFormModal = ({ show, onClose, onSubmit }) => {
               </button>
             ) : <span />}
             
-            {formStep < 3 ? (
+            {formStep < 4 ? (
               <button 
                 type="button" 
                 onClick={handleNextStep} 
