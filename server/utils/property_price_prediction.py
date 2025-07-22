@@ -54,10 +54,31 @@ def predict():
         if not input_data:
             return jsonify({"error": "No input data provided"}), 400
 
-        # Ensure input matches model features
-        X_input = pd.DataFrame([input_data], columns=feature_columns)
+        # Create a DataFrame with all expected features, filled with 0s
+        X_input = pd.DataFrame(0, index=[0], columns=feature_columns)
+        
+        # Fill in the provided values
+        for key, value in input_data.items():
+            if key in feature_columns:
+                # Handle NaN values
+                if pd.isna(value) or value is None:
+                    X_input[key] = 0
+                else:
+                    X_input[key] = float(value)
+            else:
+                print(f"⚠️ Warning: Feature '{key}' not found in model features")
+        
         print(f"📊 Input DataFrame shape: {X_input.shape}")
-        print(f"📊 Input DataFrame columns: {list(X_input.columns)}")
+        print(f"📊 Non-zero features: {X_input.loc[0][X_input.loc[0] != 0].to_dict()}")
+        
+        # Check for NaN values before prediction
+        if X_input.isna().any().any():
+            nan_columns = X_input.columns[X_input.isna().any()].tolist()
+            print(f"❌ NaN values found in columns: {nan_columns}")
+            return jsonify({
+                "error": f"NaN values found in columns: {nan_columns}",
+                "status": "error"
+            }), 400
         
         # Make prediction
         prediction = model.predict(X_input)
@@ -68,7 +89,8 @@ def predict():
         return jsonify({
             "predicted_price": predicted_price,
             "status": "success",
-            "input_features": len(feature_columns)
+            "input_features": len(feature_columns),
+            "location_handling": "dynamic"
         })
         
     except Exception as e:
@@ -83,7 +105,7 @@ def predict():
         }), 400
 
 if __name__ == "__main__":
-    port = int(os.environ.get("FLASK_PORT"))  # Default to 5001 if FLASK_PORT not set
+    port = int(os.environ.get("FLASK_PORT"))
     debug_mode = os.getenv("FLASK_DEBUG", "False").lower() == "true"
     
     print(f"🚀 Starting Flask server on port {port}")

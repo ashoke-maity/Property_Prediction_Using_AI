@@ -1,5 +1,3 @@
-// API utility functions for communicating with the Node.js backend
-
 const API_BASE_URL = import.meta.env.VITE_SERVER_ROUTE;
 const API_PREFIX = import.meta.env.VITE_USER_API_KEY;
 
@@ -74,7 +72,11 @@ export const predictPropertyPrice = async (propertyData) => {
             balcony: propertyData.balcony ? parseInt(propertyData.balcony) : 0, // Default to 0 if empty
             BHK: parseInt(propertyData.bhk),
             address: propertyData.address, // Send full address for locality extraction
-            locality: extractLocalityFromAddress(propertyData.address)
+            locality: extractLocalityFromAddress(propertyData.address),
+            // Add the new required fields for the AI model
+            areaType: propertyData.areaType || 'Super built-up  Area',
+            availability: propertyData.availability || 'Ready To Move',
+            availabilityDate: propertyData.availabilityDate || null
         };
 
         console.log('Sending prediction request:', payload);
