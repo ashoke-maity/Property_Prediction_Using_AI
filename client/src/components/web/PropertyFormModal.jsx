@@ -9,7 +9,7 @@ const steps = [
   { label: 'Review', icon: <FaCheckCircle /> },
 ];
 
-const PropertyFormModal = ({ show, onClose, onSubmit }) => {
+const PropertyFormModal = ({ show, onClose, onSubmit, initialData }) => {
   // State for the form's current step and data - streamlined for AI model
   const [formStep, setFormStep] = useState(1);
   const [formData, setFormData] = useState({
@@ -25,6 +25,31 @@ const PropertyFormModal = ({ show, onClose, onSubmit }) => {
     lat: 0,
     lng: 0,
   });
+
+  // Update form data when initialData changes (for pre-filled property data)
+  React.useEffect(() => {
+    if (initialData && show) {
+      setFormData(initialData);
+      // If we have pre-filled data, skip to review step
+      setFormStep(4);
+    } else if (show) {
+      // Reset form for manual entry
+      setFormData({
+        propertyTitle: '',
+        area: '',
+        bhk: '',
+        bathrooms: '',
+        balcony: '',
+        areaType: 'Super built-up  Area',
+        availability: 'Ready To Move',
+        availabilityDate: '',
+        address: '',
+        lat: 0,
+        lng: 0,
+      });
+      setFormStep(1);
+    }
+  }, [initialData, show]);
 
   // Handlers for form logic - updated for 4 steps
   const handleNextStep = useCallback(() => setFormStep(s => Math.min(s + 1, 4)), []);

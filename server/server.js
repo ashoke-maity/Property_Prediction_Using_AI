@@ -11,6 +11,7 @@ connectDB();
 // router calls
 const userRouter = require('./routes/user.Route');
 const predictionRouter = require('./routes/prediction.Route');
+const propertyRouter = require('./routes/property.Route');
 
 // middleware
 app.use(express.json());
@@ -19,6 +20,7 @@ app.use(cors(corsOptions));
 // user api routes
 app.use(process.env.USER_API_KEY, userRouter);
 app.use(process.env.USER_API_KEY, predictionRouter);
+app.use(process.env.USER_API_KEY, propertyRouter);
 
 // server start
 const PORT = process.env.SERVER_PORT;

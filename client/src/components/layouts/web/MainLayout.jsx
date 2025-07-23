@@ -4,6 +4,7 @@ import { Canvas } from '@react-three/fiber';
 // Import all the UI components
 import Header from '../../web/Header';
 import PropertyFormModal from '../../web/PropertyFormModal';
+import PropertyListModal from '../../web/PropertyListModal';
 import GameStartModal from '../../web/GameStartModal';
 import InstructionOverlay from '../../web/InstructionOverlay';
 import LoadingScreen from '../../web/LoadingScreen';
@@ -12,7 +13,7 @@ import { Scene } from '../../three/Scene'; // Import the main scene
 import UserAuthModal from '../../web/UserAuthModal';
 
 // Import API utilities
-import { predictPropertyPrice } from '../../../utils/api';
+import { predictPropertyPrice, seedProperties } from '../../../utils/api';
 
 // Import Leaflet CSS and fixes
 import 'leaflet/dist/leaflet.css';
@@ -23,13 +24,18 @@ const MainLayout = () => {
   const [showInstruction, setShowInstruction] = useState(true);
   const [showGameBox, setShowGameBox] = useState(false);
   const [showFormModal, setShowFormModal] = useState(false);
+  const [showPropertyListModal, setShowPropertyListModal] = useState(false);
   const [showLoadingScreen, setShowLoadingScreen] = useState(false);
   const [showResultScreen, setShowResultScreen] = useState(false);
   const [predictionResult, setPredictionResult] = useState(null);
+  const [currentFormData, setCurrentFormData] = useState(null);
+  const [mapCenter, setMapCenter] = useState(null);
   const [showUfoSpeechBubble, setShowUfoSpeechBubble] = useState(false);
   const [showHowSpeechBubble, setShowHowSpeechBubble] = useState(false);
   const [showContactSpeechBubble, setShowContactSpeechBubble] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [user, setUser] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   // Handler for About click
   const handleAboutClick = useCallback(() => {
@@ -56,16 +62,109 @@ const MainLayout = () => {
   const handleUfoClick = useCallback(() => setShowGameBox(true), []);
   const handleGetStarted = useCallback(() => {
     setShowGameBox(false);
-    setShowFormModal(true);
+    setShowPropertyListModal(true);
   }, []);
   
   const handleDismissInstruction = useCallback(() => setShowInstruction(false), []);
   const handleCloseGameBox = useCallback(() => setShowGameBox(false), []);
   const handleCloseFormModal = useCallback(() => setShowFormModal(false), []);
+  const handleClosePropertyListModal = useCallback(() => setShowPropertyListModal(false), []);
   const handleCloseResultScreen = useCallback(() => setShowResultScreen(false), []);
+
+  // Handler for property selection from the list
+  const handlePropertySelect = useCallback((property) => {
+    // Pre-fill form data with selected property
+    const formData = {
+      propertyTitle: property.title,
+      area: property.area,
+      bhk: property.bhk,
+      bathrooms: property.bathrooms,
+      balcony: property.balcony || 0,
+      areaType: property.areaType,
+      availability: property.availability,
+      availabilityDate: property.availabilityDate,
+      address: property.location.address,
+      lat: property.location.coordinates.lat,
+      lng: property.location.coordinates.lng
+    };
+    
+    // Set map center to property location
+    setMapCenter({
+      lat: property.location.coordinates.lat,
+      lng: property.location.coordinates.lng
+    });
+    
+    // Close property list and open form with pre-filled data
+    setShowPropertyListModal(false);
+    setCurrentFormData(formData);
+    setShowFormModal(true);
+  }, []);
+
+  // Handler for manual property entry (original flow)
+  const handleManualEntry = useCallback(() => {
+    setShowGameBox(false);
+    setShowFormModal(true);
+  }, []);
+
+  // Check for existing authentication on component mount
+  React.useEffect(() => {
+    const checkAuth = () => {
+      const storedUser = localStorage.getItem('user');
+      const storedToken = localStorage.getItem('token');
+      
+      if (storedUser && storedToken) {
+        try {
+          const userData = JSON.parse(storedUser);
+          setUser(userData);
+          setIsAuthenticated(true);
+          console.log('User authenticated:', userData.name);
+        } catch (error) {
+          console.error('Error parsing stored user data:', error);
+          localStorage.removeItem('user');
+          localStorage.removeItem('token');
+        }
+      }
+    };
+
+    const initializeProperties = async () => {
+      try {
+        await seedProperties();
+        console.log('Sample properties initialized');
+      } catch (error) {
+        console.log('Properties may already exist or error seeding:', error.message);
+      }
+    };
+    
+    checkAuth();
+    initializeProperties();
+  }, []);
+
+  // Handler for successful login
+  const handleLoginSuccess = useCallback((userData) => {
+    setUser(userData);
+    setIsAuthenticated(true);
+    console.log('Login successful:', userData.name);
+  }, []);
+
+  // Handler for successful registration
+  const handleRegisterSuccess = useCallback((userData) => {
+    setUser(userData);
+    setIsAuthenticated(true);
+    console.log('Registration successful:', userData.name);
+  }, []);
+
+  // Handler for logout
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    setUser(null);
+    setIsAuthenticated(false);
+    console.log('User logged out');
+  }, []);
 
   const handleFormSubmit = useCallback(async (formData) => {
     setShowFormModal(false);
+    setCurrentFormData(formData); // Store form data for loading screen
     setShowLoadingScreen(true);
     
     try {
@@ -121,6 +220,9 @@ const MainLayout = () => {
         onHowClick={handleHowClick}
         onContactClick={handleContactClick}
         onLoginClick={() => setShowAuthModal(true)}
+        user={user}
+        isAuthenticated={isAuthenticated}
+        onLogout={handleLogout}
       />
       <section className="relative w-screen min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-sky-400 to-blue-600 p-0 m-0">
         <div className="w-full h-screen">
@@ -138,11 +240,32 @@ const MainLayout = () => {
         </div>
 
         <InstructionOverlay show={showInstruction} onDismiss={handleDismissInstruction} />
-        <GameStartModal show={showGameBox} onClose={handleCloseGameBox} onGetStarted={handleGetStarted} />
-        <PropertyFormModal show={showFormModal} onClose={handleCloseFormModal} onSubmit={handleFormSubmit} />
-        <LoadingScreen show={showLoadingScreen} />
+        <GameStartModal 
+          show={showGameBox} 
+          onClose={handleCloseGameBox} 
+          onGetStarted={handleGetStarted}
+          onManualEntry={handleManualEntry}
+        />
+        <PropertyListModal 
+          show={showPropertyListModal} 
+          onClose={handleClosePropertyListModal} 
+          onPropertySelect={handlePropertySelect}
+          mapCenter={mapCenter}
+        />
+        <PropertyFormModal 
+          show={showFormModal} 
+          onClose={handleCloseFormModal} 
+          onSubmit={handleFormSubmit}
+          initialData={currentFormData}
+        />
+        <LoadingScreen show={showLoadingScreen} propertyData={currentFormData} />
         <ResultModal show={showResultScreen} onClose={handleCloseResultScreen} resultData={predictionResult} />
-        <UserAuthModal show={showAuthModal} onClose={() => setShowAuthModal(false)} />
+        <UserAuthModal 
+          show={showAuthModal} 
+          onClose={() => setShowAuthModal(false)}
+          onLogin={handleLoginSuccess}
+          onRegister={handleRegisterSuccess}
+        />
       </section>
     </>
   );

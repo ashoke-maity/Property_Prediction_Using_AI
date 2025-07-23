@@ -2,60 +2,16 @@ const API_BASE_URL = import.meta.env.VITE_SERVER_ROUTE;
 const API_PREFIX = import.meta.env.VITE_USER_API_KEY;
 
 /**
- * Extract locality from address for AI model
+ * Extract locality name from address for display purposes
  * @param {string} address - Full address string
- * @returns {string} - Extracted locality or default
+ * @returns {string} - Extracted locality name
  */
 const extractLocalityFromAddress = (address) => {
-    if (!address) return 'Whitefield';
+    if (!address) return 'Selected Location';
     
-    // List of known Bangalore localities that the AI model supports (from prediction controller)
-    const knownLocalities = [
-        'Whitefield', 'Sarjapur Road', 'Electronic City', 'Marathahalli', 
-        'Raja Rajeshwari Nagar', 'Haralur Road', 'Hennur Road', 'Koramangala',
-        'Indiranagar', 'HSR Layout', 'BTM Layout', 'Jayanagar', 'Banashankari',
-        'Rajajinagar', 'Malleshwaram', 'Yelahanka', 'Hebbal', 'Bellandur',
-        'Sarjapur', 'Varthur', 'Kadugodi', 'KR Puram', 'Ramamurthy Nagar',
-        'CV Raman Nagar', 'Domlur', 'Koramangala 1st Block', 'Koramangala 4th Block',
-        'Koramangala 5th Block', 'Koramangala 6th Block', 'Koramangala 7th Block',
-        'HSR Layout Sector 1', 'HSR Layout Sector 2', 'HSR Layout Sector 3',
-        'BTM 1st Stage', 'BTM 2nd Stage', 'Bannerghatta Road', 'Bommanahalli',
-        'Begur Road', 'Arekere', 'Hulimavu', 'JP Nagar', 'Uttarahalli'
-    ];
-    
-    const addressLower = address.toLowerCase();
-    
-    // Sort localities by length (longest first) for better matching
-    const sortedLocalities = knownLocalities.sort((a, b) => b.length - a.length);
-    
-    // Find the best matching locality
-    for (const locality of sortedLocalities) {
-        if (addressLower.includes(locality.toLowerCase())) {
-            console.log(`Matched locality: ${locality} from address: ${address}`);
-            return locality;
-        }
-    }
-    
-    // Try some common variations and abbreviations
-    const variations = {
-        'hsr': 'HSR Layout',
-        'btm': 'BTM Layout',
-        'kr puram': 'KR Puram',
-        'cv raman nagar': 'CV Raman Nagar',
-        'rr nagar': 'Raja Rajeshwari Nagar',
-        'electronic city': 'Electronic City',
-        'sarjapur': 'Sarjapur Road'
-    };
-    
-    for (const [variation, fullName] of Object.entries(variations)) {
-        if (addressLower.includes(variation)) {
-            console.log(`Matched variation: ${variation} -> ${fullName} from address: ${address}`);
-            return fullName;
-        }
-    }
-    
-    console.log(`No locality match found for: ${address}, using default: Whitefield`);
-    return 'Whitefield';
+    // Extract the first part of the address as locality
+    const parts = address.split(',');
+    return parts[0].trim() || 'Selected Location';
 };
 
 /**
@@ -134,12 +90,47 @@ export const registerUser = async (userData) => {
 
 /**
  * Logs in a user
- * @param {Object} loginData - User login data
+ * @param {Object} loginData - User login data (email, password)
  * @returns {Promise<Object>} - Login result
  */
 export const loginUser = async (loginData) => {
     try {
         const response = await fetch(`${API_BASE_URL}${API_PREFIX}/login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(loginData)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Login Error:', error);
+        throw error;
+    }
+};
+
+/**
+ * Get all available properties with optional filters
+ * @param {Object} filters - Filter options
+ * @returns {Promise<Object>} - Properties list
+ */
+export const getAllProperties = async (filters = {}) => {
+    try {
+        const queryParams = new URLSearchParams();
+        
+        Object.keys(filters).forEach(key => {
+            if (filters[key] !== undefined && filters[key] !== null && filters[key] !== '') {
+                queryParams.append(key, filters[key]);
+            }
+        });
+
+        const response = await fetch(`${API_BASE_URL}${API_PREFIX}/properties?${queryParams}`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
@@ -153,7 +144,145 @@ export const loginUser = async (loginData) => {
 
         return await response.json();
     } catch (error) {
-        console.error('Login Error:', error);
+        console.error('Get Properties Error:', error);
+        throw error;
+    }
+};
+
+/**
+ * Get properties near a specific location
+ * @param {number} lat - Latitude
+ * @param {number} lng - Longitude
+ * @param {number} radius - Search radius in km (default: 2)
+ * @returns {Promise<Object>} - Nearby properties
+ */
+export const getNearbyProperties = async (lat, lng, radius = 2) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}${API_PREFIX}/properties/nearby?lat=${lat}&lng=${lng}&radius=${radius}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Get Nearby Properties Error:', error);
+        throw error;
+    }
+};
+
+/**
+ * Get single property by ID
+ * @param {string} propertyId - Property ID
+ * @returns {Promise<Object>} - Property details
+ */
+export const getPropertyById = async (propertyId) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}${API_PREFIX}/properties/${propertyId}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Get Property Error:', error);
+        throw error;
+    }
+};
+
+/**
+ * Add a new property listing
+ * @param {Object} propertyData - Property data
+ * @returns {Promise<Object>} - Created property
+ */
+export const addProperty = async (propertyData) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}${API_PREFIX}/properties`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(propertyData)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Add Property Error:', error);
+        throw error;
+    }
+};
+
+/**
+ * Seed sample properties (for testing)
+ * @returns {Promise<Object>} - Seed result
+ */
+export const seedProperties = async () => {
+    try {
+        const response = await fetch(`${API_BASE_URL}${API_PREFIX}/properties/seed`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Seed Properties Error:', error);
+        throw error;
+    }
+};
+
+/**
+ * Get user profile (requires authentication)
+ * @returns {Promise<Object>} - User profile data
+ */
+export const getUserProfile = async () => {
+    try {
+        const token = localStorage.getItem('token');
+        
+        if (!token) {
+            throw new Error('No authentication token found');
+        }
+
+        const response = await fetch(`${API_BASE_URL}${API_PREFIX}/profile`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Get User Profile Error:', error);
         throw error;
     }
 };
