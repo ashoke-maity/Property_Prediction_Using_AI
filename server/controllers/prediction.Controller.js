@@ -98,8 +98,44 @@ const predictPropertyPrice = async (req, res) => {
             total_sqft, bath, balcony, BHK, locality, areaType, availability: formattedAvailability
         });
 
-        // Simplified payload - only send essential features
-        // The Flask API will handle creating all other features with default values
+        // Create a comprehensive payload with all availability features the model expects
+        // Based on the error message, these are some of the features the model was trained with
+        const commonAvailabilityFeatures = [
+            'availability_Ready To Move',
+            'availability_14-Nov', 'availability_15-Aug', 'availability_15-Dec', 'availability_15-Jun', 'availability_15-Nov',
+            'availability_16-Dec', 'availability_16-Feb', 'availability_16-May', 'availability_17-Jun', 'availability_17-Mar',
+            'availability_18-Dec', 'availability_18-Jun', 'availability_19-Dec', 'availability_19-Jun', 'availability_19-Mar',
+            'availability_20-Dec', 'availability_20-Jun', 'availability_20-Sep', 'availability_21-Jun', 'availability_22-Dec',
+            'availability_23-Dec', 'availability_24-Dec', 'availability_25-Dec',
+            // Add more based on common patterns
+            'availability_16-Jan', 'availability_16-Mar', 'availability_16-Apr', 'availability_16-Jul', 'availability_16-Aug',
+            'availability_16-Sep', 'availability_16-Oct', 'availability_16-Nov',
+            'availability_17-Jan', 'availability_17-Feb', 'availability_17-Apr', 'availability_17-May', 'availability_17-Jul',
+            'availability_17-Aug', 'availability_17-Sep', 'availability_17-Oct', 'availability_17-Nov', 'availability_17-Dec',
+            'availability_18-Jan', 'availability_18-Feb', 'availability_18-Mar', 'availability_18-Apr', 'availability_18-May',
+            'availability_18-Jul', 'availability_18-Aug', 'availability_18-Sep', 'availability_18-Oct', 'availability_18-Nov',
+            'availability_19-Jan', 'availability_19-Feb', 'availability_19-Apr', 'availability_19-May', 'availability_19-Jul',
+            'availability_19-Aug', 'availability_19-Sep', 'availability_19-Oct', 'availability_19-Nov',
+            'availability_20-Jan', 'availability_20-Feb', 'availability_20-Mar', 'availability_20-Apr', 'availability_20-May',
+            'availability_20-Jul', 'availability_20-Aug', 'availability_20-Oct', 'availability_20-Nov',
+            'availability_21-Jan', 'availability_21-Feb', 'availability_21-Mar', 'availability_21-Apr', 'availability_21-May',
+            'availability_21-Jul', 'availability_21-Aug', 'availability_21-Sep', 'availability_21-Oct', 'availability_21-Nov',
+            'availability_21-Dec',
+            'availability_22-Jan', 'availability_22-Feb', 'availability_22-Mar', 'availability_22-Apr', 'availability_22-May',
+            'availability_22-Jun', 'availability_22-Jul', 'availability_22-Aug', 'availability_22-Sep', 'availability_22-Oct',
+            'availability_22-Nov',
+            'availability_23-Jan', 'availability_23-Feb', 'availability_23-Mar', 'availability_23-Apr', 'availability_23-May',
+            'availability_23-Jun', 'availability_23-Jul', 'availability_23-Aug', 'availability_23-Sep', 'availability_23-Oct',
+            'availability_23-Nov',
+            'availability_24-Jan', 'availability_24-Feb', 'availability_24-Mar', 'availability_24-Apr', 'availability_24-May',
+            'availability_24-Jun', 'availability_24-Jul', 'availability_24-Aug', 'availability_24-Sep', 'availability_24-Oct',
+            'availability_24-Nov',
+            'availability_25-Jan', 'availability_25-Feb', 'availability_25-Mar', 'availability_25-Apr', 'availability_25-May',
+            'availability_25-Jun', 'availability_25-Jul', 'availability_25-Aug', 'availability_25-Sep', 'availability_25-Oct',
+            'availability_25-Nov'
+        ];
+
+        // Initialize payload with basic features
         const payload = {
             'total_sqft': safeNumber(total_sqft),
             'bath': safeNumber(bath),
@@ -109,17 +145,28 @@ const predictPropertyPrice = async (req, res) => {
             'area_type_Carpet  Area': (areaType === 'Carpet  Area') ? 1 : 0,
             'area_type_Plot  Area': (areaType === 'Plot  Area') ? 1 : 0,
             'area_type_Super built-up  Area': (areaType === 'Super built-up  Area') ? 1 : 0,
-            // Availability - only set the relevant one
-            'availability_Ready To Move': (formattedAvailability === 'Ready To Move') ? 1 : 0,
             // For dynamic locations, always use location_other
             'location_other': 1
         };
 
-        // If availability is not "Ready To Move", set the specific date
-        if (formattedAvailability !== 'Ready To Move') {
-            const availabilityColumnName = `availability_${formattedAvailability}`;
-            payload[availabilityColumnName] = 1;
-            payload['availability_Ready To Move'] = 0; // Override the Ready To Move
+        // Initialize all availability features to 0
+        commonAvailabilityFeatures.forEach(feature => {
+            payload[feature] = 0;
+        });
+
+        // Set the appropriate availability feature to 1
+        if (formattedAvailability === 'Ready To Move') {
+            payload['availability_Ready To Move'] = 1;
+        } else {
+            // Check if the formatted availability matches any of the known features
+            const availabilityFeatureName = `availability_${formattedAvailability}`;
+            if (commonAvailabilityFeatures.includes(availabilityFeatureName)) {
+                payload[availabilityFeatureName] = 1;
+            } else {
+                // If the specific date is not in training data, default to Ready To Move
+                payload['availability_Ready To Move'] = 1;
+                console.log(`⚠️ Availability date ${formattedAvailability} not found in training data, defaulting to Ready To Move`);
+            }
         }
         
         console.log(`🗺️ Using dynamic location: ${locality} (mapped to location_other=1)`);
@@ -147,11 +194,12 @@ const predictPropertyPrice = async (req, res) => {
         });
 
         // --- Call the Flask API 🐍 ---
-        const flaskApiUrl = `http://127.0.0.1:${process.env.FLASK_PORT}/predict`;
+        const flaskApiUrl = process.env.FLASK_API_URL || `http://127.0.0.1:${process.env.FLASK_PORT || 5001}`;
+        const fullFlaskUrl = `${flaskApiUrl}/predict`;
         console.log("Sending payload to Flask:", payload);
-        console.log("Flask API URL:", flaskApiUrl);
+        console.log("Flask API URL:", fullFlaskUrl);
         
-        const response = await axios.post(flaskApiUrl, payload, {
+        const response = await axios.post(fullFlaskUrl, payload, {
             timeout: 10000, // 10 second timeout
             headers: {
                 'Content-Type': 'application/json'
