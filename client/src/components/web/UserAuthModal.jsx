@@ -6,7 +6,7 @@ import { registerUser, loginUser } from '../../utils/api';
 const tabClasses = (active) =>
   `flex-1 py-2 text-center font-semibold rounded-t-lg cursor-pointer transition-colors duration-200 ${active ? 'bg-gradient-to-r from-blue-400 to-blue-600 text-white shadow' : 'bg-gray-100 text-gray-500 hover:bg-blue-50'}`;
 
-const UserAuthModal = ({ show, onClose, onLogin, onRegister }) => {
+const UserAuthModal = ({ show, onClose, onLogin, onRegister, showGameAccessMessage = false }) => {
   const [tab, setTab] = useState('login');
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [registerData, setRegisterData] = useState({ name: '', email: '', password: '', confirm: '' });
@@ -132,6 +132,16 @@ const UserAuthModal = ({ show, onClose, onLogin, onRegister }) => {
           <div className="text-blue-400 text-sm font-semibold mb-2">
             {tab === 'login' ? 'Login to your account' : 'Create a new account'}
           </div>
+          {showGameAccessMessage && (
+            <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-3 mb-4 text-center">
+              <div className="text-purple-700 text-sm font-medium flex items-center justify-center gap-2">
+                🎮 <span>Please login to start exploring properties!</span>
+              </div>
+              <div className="text-purple-600 text-xs mt-1">
+                You need an account to access the property prediction game
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex w-full mb-6 transition-all duration-300">
           <div className={tabClasses(tab === 'login')} onClick={() => setTab('login')}>Login</div>

@@ -36,6 +36,7 @@ const MainLayout = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [pendingGameAccess, setPendingGameAccess] = useState(false);
 
   // Handler for About click
   const handleAboutClick = useCallback(() => {
@@ -59,7 +60,17 @@ const MainLayout = () => {
     setTimeout(() => setShowContactSpeechBubble(false), 6000);
   }, []);
 
-  const handleUfoClick = useCallback(() => setShowGameBox(true), []);
+  const handleUfoClick = useCallback(() => {
+    // Check if user is authenticated
+    if (isAuthenticated) {
+      // User is logged in, proceed with game
+      setShowGameBox(true);
+    } else {
+      // User is not logged in, show auth modal first
+      setPendingGameAccess(true);
+      setShowAuthModal(true);
+    }
+  }, [isAuthenticated]);
   const handleGetStarted = useCallback(() => {
     setShowGameBox(false);
     setShowPropertyListModal(true);
@@ -144,14 +155,34 @@ const MainLayout = () => {
     setUser(userData);
     setIsAuthenticated(true);
     console.log('Login successful:', userData.name);
-  }, []);
+    
+    // If user was trying to access the game before login, continue the flow
+    if (pendingGameAccess) {
+      setPendingGameAccess(false);
+      setShowAuthModal(false);
+      // Small delay to ensure modal closes smoothly
+      setTimeout(() => {
+        setShowGameBox(true);
+      }, 300);
+    }
+  }, [pendingGameAccess]);
 
   // Handler for successful registration
   const handleRegisterSuccess = useCallback((userData) => {
     setUser(userData);
     setIsAuthenticated(true);
     console.log('Registration successful:', userData.name);
-  }, []);
+    
+    // If user was trying to access the game before registration, continue the flow
+    if (pendingGameAccess) {
+      setPendingGameAccess(false);
+      setShowAuthModal(false);
+      // Small delay to ensure modal closes smoothly
+      setTimeout(() => {
+        setShowGameBox(true);
+      }, 300);
+    }
+  }, [pendingGameAccess]);
 
   // Handler for logout
   const handleLogout = useCallback(() => {
@@ -262,9 +293,16 @@ const MainLayout = () => {
         <ResultModal show={showResultScreen} onClose={handleCloseResultScreen} resultData={predictionResult} />
         <UserAuthModal 
           show={showAuthModal} 
-          onClose={() => setShowAuthModal(false)}
+          onClose={() => {
+            setShowAuthModal(false);
+            // Reset pending game access if user closes modal without authenticating
+            if (pendingGameAccess) {
+              setPendingGameAccess(false);
+            }
+          }}
           onLogin={handleLoginSuccess}
           onRegister={handleRegisterSuccess}
+          showGameAccessMessage={pendingGameAccess}
         />
       </section>
     </>
