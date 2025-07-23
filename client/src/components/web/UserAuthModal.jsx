@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { FaUserCircle, FaLock, FaSmile } from 'react-icons/fa';
+import { FaUserCircle, FaLock, FaSmile, FaCheckCircle } from 'react-icons/fa';
+import { registerUser, loginUser } from '../../utils/api';
+
 
 const tabClasses = (active) =>
   `flex-1 py-2 text-center font-semibold rounded-t-lg cursor-pointer transition-colors duration-200 ${active ? 'bg-gradient-to-r from-blue-400 to-blue-600 text-white shadow' : 'bg-gray-100 text-gray-500 hover:bg-blue-50'}`;
@@ -28,32 +30,86 @@ const UserAuthModal = ({ show, onClose, onLogin, onRegister }) => {
     e.preventDefault();
     setLoginError('');
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      if (loginData.email === 'user@example.com' && loginData.password === 'password') {
-        onLogin && onLogin(loginData);
+    
+    try {
+      const result = await loginUser(loginData);
+      
+      if (result.success) {
+        // Store user data in localStorage or context
+        localStorage.setItem('user', JSON.stringify(result.user));
+        localStorage.setItem('token', result.token);
+        
+        // Call parent callback
+        onLogin && onLogin(result.user);
+        
+        // Close modal
         onClose();
+        
+        // Reset form
+        setLoginData({ email: '', password: '' });
       } else {
-        setLoginError('Oops! Invalid email or password. 😅');
+        setLoginError(result.message || 'Login failed. Please try again. 😅');
       }
-    }, 1200);
+    } catch (error) {
+      console.error('Login error:', error);
+      setLoginError(error.message || 'Login failed. Please check your credentials. 😅');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleRegister = async (e) => {
     e.preventDefault();
     setRegisterError('');
     setLoading(true);
-    setTimeout(() => {
+    
+    // Client-side validation
+    if (registerData.password !== registerData.confirm) {
+      setRegisterError('Passwords do not match! 🤔');
       setLoading(false);
-      if (registerData.password !== registerData.confirm) {
-        setRegisterError('Passwords do not match! 🤔');
-      } else if (registerData.password.length < 6) {
-        setRegisterError('Password must be at least 6 characters!');
-      } else {
-        onRegister && onRegister(registerData);
+      return;
+    }
+    
+    if (registerData.password.length < 6) {
+      setRegisterError('Password must be at least 6 characters!');
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      // Prepare data for API (exclude confirm password)
+      const userData = {
+        name: registerData.name,
+        email: registerData.email,
+        password: registerData.password
+      };
+      
+      const result = await registerUser(userData);
+      
+      if (result.success) {
+        // Store user data in localStorage
+        localStorage.setItem('user', JSON.stringify(result.user));
+        if (result.token) {
+          localStorage.setItem('token', result.token);
+        }
+        
+        // Call parent callback
+        onRegister && onRegister(result.user);
+        
+        // Close modal
         onClose();
+        
+        // Reset form
+        setRegisterData({ name: '', email: '', password: '', confirm: '' });
+      } else {
+        setRegisterError(result.message || 'Registration failed. Please try again. 😅');
       }
-    }, 1200);
+    } catch (error) {
+      console.error('Registration error:', error);
+      setRegisterError(error.message || 'Registration failed. Please try again. 😅');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

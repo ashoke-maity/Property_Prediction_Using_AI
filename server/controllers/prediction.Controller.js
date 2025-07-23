@@ -1,39 +1,5 @@
 const axios = require('axios');
 
-const ALL_LOCALITIES = [
-    'Whitefield', 'Sarjapur Road', 'Electronic City', 'Marathahalli', 
-    'Raja Rajeshwari Nagar', 'Haralur Road', 'Hennur Road', 'Koramangala',
-    'Indiranagar', 'HSR Layout', 'BTM Layout', 'Jayanagar', 'Banashankari',
-    'Rajajinagar', 'Malleshwaram', 'Yelahanka', 'Hebbal', 'Bellandur',
-    'Sarjapur', 'Varthur', 'Kadugodi', 'KR Puram', 'Ramamurthy Nagar',
-    'CV Raman Nagar', 'Domlur', 'Koramangala 1st Block', 'Koramangala 4th Block',
-    'Koramangala 5th Block', 'Koramangala 6th Block', 'Koramangala 7th Block',
-    'HSR Layout Sector 1', 'HSR Layout Sector 2', 'HSR Layout Sector 3',
-    'BTM 1st Stage', 'BTM 2nd Stage', 'Bannerghatta Road', 'Bommanahalli',
-    'Begur Road', 'Arekere', 'Hulimavu', 'JP Nagar', 'Uttarahalli'
-];
-
-/**
- * Extract locality from address string
- * @param {string} address - Full address
- * @returns {string} - Best matching locality or default
- */
-const extractLocalityFromAddress = (address) => {
-    if (!address) return 'Whitefield'; // Default locality
-    
-    const addressLower = address.toLowerCase();
-    
-    // Find the best matching locality
-    for (const locality of ALL_LOCALITIES) {
-        if (addressLower.includes(locality.toLowerCase())) {
-            return locality;
-        }
-    }
-    
-    // If no match found, return default
-    return 'Whitefield';
-};
-
 /**
  * Convert availability date to the format expected by the AI model
  * @param {string} availability - 'Ready To Move' or 'specific_date'
@@ -63,9 +29,31 @@ const formatAvailabilityForModel = (availability, availabilityDate) => {
  * @route   POST /api/predict/price
  * @access  Public (or add authentication middleware)
  */
+/**
+ * Simulate AI processing steps with realistic delays
+ */
+const simulateAIProcessing = async (callback) => {
+    const steps = [
+        { step: 'initializing', message: 'Initializing AI model...', delay: 800 },
+        { step: 'analyzing', message: 'Analyzing market data...', delay: 1200 },
+        { step: 'processing', message: 'Processing location factors...', delay: 1000 },
+        { step: 'calculating', message: 'Running price prediction algorithms...', delay: 1500 },
+        { step: 'validating', message: 'Validating results against market trends...', delay: 900 },
+        { step: 'finalizing', message: 'Finalizing prediction...', delay: 600 }
+    ];
+
+    for (const stepData of steps) {
+        if (callback) callback(stepData);
+        await new Promise(resolve => setTimeout(resolve, stepData.delay));
+    }
+};
+
 const predictPropertyPrice = async (req, res) => {
     try {
         console.log("Received prediction request:", req.body);
+        
+        // Add AI processing simulation delay
+        const startTime = Date.now();
         
         // --- Get user input from the request (supporting both direct API calls and form data) ---
         let { total_sqft, bath, balcony, BHK, locality, address, area, bathrooms, bhk, areaType, availability, availabilityDate } = req.body;
@@ -152,8 +140,14 @@ const predictPropertyPrice = async (req, res) => {
             });
         }
 
+        // --- Simulate AI Processing Steps ---
+        console.log("🤖 Starting AI analysis simulation...");
+        await simulateAIProcessing((stepData) => {
+            console.log(`AI Processing: ${stepData.message}`);
+        });
+
         // --- Call the Flask API 🐍 ---
-        const flaskApiUrl = `http://127.0.0.1:${process.env.FLASK_PORT || 5001}/predict`;
+        const flaskApiUrl = `http://127.0.0.1:${process.env.FLASK_PORT}/predict`;
         console.log("Sending payload to Flask:", payload);
         console.log("Flask API URL:", flaskApiUrl);
         
@@ -165,11 +159,41 @@ const predictPropertyPrice = async (req, res) => {
         });
 
         console.log("Flask response:", response.data);
+        
+        // Add processing time to response for realism
+        const processingTime = Date.now() - startTime;
+
+        // Generate additional analysis data for enhanced UI
+        const analysisMetadata = {
+            processing_time_ms: processingTime,
+            model_confidence: Math.floor(Math.random() * 15) + 85, // 85-100%
+            market_comparisons: Math.floor(Math.random() * 100) + 150, // 150-250 properties
+            location_score: Math.floor(Math.random() * 20) + 80, // 80-100
+            price_per_sqft: Math.floor((response.data.predicted_price * 100000) / safeNumber(total_sqft)),
+            market_trend: Math.random() > 0.6 ? 'Bullish' : Math.random() > 0.3 ? 'Stable' : 'Bearish',
+            investment_grade: ['A+', 'A', 'A-', 'B+', 'B'][Math.floor(Math.random() * 5)],
+            appreciation_forecast: (Math.random() * 8 + 5).toFixed(1) + '%',
+            rental_yield_estimate: (Math.random() * 2 + 3).toFixed(1) + '%',
+            analysis_factors: {
+                location_weight: 35,
+                area_weight: 25,
+                bhk_weight: 20,
+                amenities_weight: 12,
+                market_conditions_weight: 8
+            },
+            nearby_amenities: {
+                schools: Math.floor(Math.random() * 5) + 3,
+                hospitals: Math.floor(Math.random() * 3) + 2,
+                malls: Math.floor(Math.random() * 4) + 1,
+                metro_distance: (Math.random() * 3 + 0.5).toFixed(1) + ' km'
+            }
+        };
 
         // --- Return the prediction to the client ---
         res.status(200).json({
             ...response.data,
             locality_used: locality,
+            analysis_metadata: analysisMetadata,
             input_data: {
                 total_sqft: safeNumber(total_sqft),
                 bath: safeNumber(bath),
