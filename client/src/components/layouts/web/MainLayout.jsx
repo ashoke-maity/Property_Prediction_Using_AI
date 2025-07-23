@@ -20,6 +20,46 @@ import 'leaflet/dist/leaflet.css';
 import '../../../utils/leafletFix';
 
 
+// Error Boundary Component for WebGL
+class WebGLErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('WebGL Error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="w-full h-screen flex flex-col items-center justify-center bg-gradient-to-b from-sky-400 to-blue-600 text-white">
+          <div className="text-center p-8 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 max-w-md">
+            <div className="text-6xl mb-4">🛸</div>
+            <h2 className="text-2xl font-bold mb-4">3D Scene Unavailable</h2>
+            <p className="text-blue-100 mb-6">
+              WebGL is not available in your browser. You can still use all the property prediction features!
+            </p>
+            <button
+              onClick={this.props.onStartGame}
+              className="px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold rounded-full text-lg shadow-md transition-all duration-200"
+            >
+              Start Property Search
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 const MainLayout = () => {
   const [showInstruction, setShowInstruction] = useState(true);
   const [showGameBox, setShowGameBox] = useState(false);
@@ -37,6 +77,7 @@ const MainLayout = () => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pendingGameAccess, setPendingGameAccess] = useState(false);
+  const [webglError, setWebglError] = useState(false);
 
   // Handler for About click
   const handleAboutClick = useCallback(() => {
@@ -257,17 +298,47 @@ const MainLayout = () => {
       />
       <section className="relative w-screen min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-sky-400 to-blue-600 p-0 m-0">
         <div className="w-full h-screen">
-          <Canvas shadows>
-            <Scene 
-              onUfoClick={handleUfoClick} 
-              showUfoSpeechBubble={showUfoSpeechBubble}
-              showHowSpeechBubble={showHowSpeechBubble}
-              showContactSpeechBubble={showContactSpeechBubble}
-              onCloseUfoSpeechBubble={() => setShowUfoSpeechBubble(false)}
-              onCloseHowSpeechBubble={() => setShowHowSpeechBubble(false)}
-              onCloseContactSpeechBubble={() => setShowContactSpeechBubble(false)}
-            />
-          </Canvas>
+          <WebGLErrorBoundary onStartGame={handleUfoClick}>
+            <Canvas 
+              shadows
+              onCreated={({ gl }) => {
+                // Handle WebGL context creation success
+                console.log('WebGL context created successfully');
+              }}
+              onError={(error) => {
+                // Handle WebGL context creation errors
+                console.error('Canvas error:', error);
+                setWebglError(true);
+              }}
+              fallback={
+                <div className="w-full h-screen flex flex-col items-center justify-center bg-gradient-to-b from-sky-400 to-blue-600 text-white">
+                  <div className="text-center p-8 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 max-w-md">
+                    <div className="text-6xl mb-4">🛸</div>
+                    <h2 className="text-2xl font-bold mb-4">3D Scene Loading...</h2>
+                    <p className="text-blue-100 mb-6">
+                      Initializing WebGL context. If this takes too long, your browser may not support WebGL.
+                    </p>
+                    <button
+                      onClick={handleUfoClick}
+                      className="px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold rounded-full text-lg shadow-md transition-all duration-200"
+                    >
+                      Start Property Search
+                    </button>
+                  </div>
+                </div>
+              }
+            >
+              <Scene 
+                onUfoClick={handleUfoClick} 
+                showUfoSpeechBubble={showUfoSpeechBubble}
+                showHowSpeechBubble={showHowSpeechBubble}
+                showContactSpeechBubble={showContactSpeechBubble}
+                onCloseUfoSpeechBubble={() => setShowUfoSpeechBubble(false)}
+                onCloseHowSpeechBubble={() => setShowHowSpeechBubble(false)}
+                onCloseContactSpeechBubble={() => setShowContactSpeechBubble(false)}
+              />
+            </Canvas>
+          </WebGLErrorBoundary>
         </div>
 
         <InstructionOverlay show={showInstruction} onDismiss={handleDismissInstruction} />

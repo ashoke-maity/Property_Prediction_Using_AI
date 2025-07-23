@@ -1,0 +1,1 @@
+web: gunicorn property_price_prediction:app
