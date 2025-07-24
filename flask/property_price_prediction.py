@@ -62,7 +62,7 @@ except Exception as e:
     feature_columns = [
         'total_sqft', 'bath', 'balcony', 'BHK',
         'area_type_Carpet  Area', 'area_type_Plot  Area', 'area_type_Super built-up  Area',
-        'availability_Ready To Move', 'location_other'
+        'availability_Ready To Move'
     ]
     print(f"📋 Using emergency fallback features: {len(feature_columns)} features")
 
